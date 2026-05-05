@@ -1,0 +1,32 @@
+# Python-generated files
+__pycache__/
+*.py[oc]
+build/
+dist/
+wheels/
+*.egg-info
+
+# Virtual environments
+.venv
+venv/
+
+# Editor config
+.vscode/
+.claude/
+.continue/
+
+# Personal files
+resume.pdf
+
+# LinkedIn session
+linkedin_session/
+session.json
+
+# Sensitive personal data
+profile.json
+cred.json
+questions.json
+jobs.csv
+locations.json
+CLAUDE.md
+resume.pdf
