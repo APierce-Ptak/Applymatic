@@ -1,5 +1,7 @@
 # Applymatic — Automate Your LinkedIn Job Applications
 
+**[🌐 Live Page](https://apierce-ptak.github.io/Applymatic/)**
+
 Applymatic is a **Python job application automation** tool that scrapes LinkedIn job listings and automatically submits Easy Apply applications on your behalf. Built with Playwright and Streamlit, it functions as a **LinkedIn Easy Apply bot** — handling multi-page forms, caching answers, and matching your profile to form fields so you never type the same answer twice. If you've been looking for a **Playwright LinkedIn scraper** or a reliable way to **automate job applications** at scale, Applymatic is built for that. It supports full **LinkedIn automation** from search to submission across Windows, Mac, and Linux.
 
 ---
