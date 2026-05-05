@@ -1,14 +1,14 @@
-# Applymatic — Automate Your LinkedIn Job Applications
+# Applymatic — Automate Your Job Applications
 
 **[🌐 Live Page](https://apierce-ptak.github.io/Applymatic/)**
 
-Applymatic is a **Python job application automation** tool that scrapes LinkedIn job listings and automatically submits Easy Apply applications on your behalf. Built with Playwright and Streamlit, it functions as a **LinkedIn Easy Apply bot** — handling multi-page forms, caching answers, and matching your profile to form fields so you never type the same answer twice. If you've been looking for a **Playwright LinkedIn scraper** or a reliable way to **automate job applications** at scale, Applymatic is built for that. It supports full **LinkedIn automation** from search to submission across Windows, Mac, and Linux.
+Applymatic is a **Python job application automation** tool that scrapes job listings and automatically submits applications on your behalf. Built with Playwright and Streamlit, it currently supports **LinkedIn Easy Apply** — handling multi-page forms, caching answers, and matching your profile to form fields so you never type the same answer twice. If you've been looking for a **Playwright LinkedIn scraper** or a reliable way to **automate job applications** at scale, Applymatic is built for that, with more platforms on the way. It runs cross-platform across Windows, Mac, and Linux.
 
 ---
 
 ## What Applymatic Does
 
-- **Scrapes LinkedIn job listings** — searches by keyword, location, distance, date posted, and Easy Apply filter
+- **Scrapes job listings** — currently supports LinkedIn; searches by keyword, location, distance, date posted, and Easy Apply filter
 - **Auto-fills and submits Easy Apply forms** — handles text inputs, dropdowns, radio buttons, location autocomplete, and multi-page applications
 - **Caches your answers** — saves responses to `questions.json` so repeated questions are answered automatically
 - **Matches your profile** — maps `profile.json` fields (name, phone, salary, work authorization, years of experience by technology) directly to form fields
@@ -21,14 +21,14 @@ Applymatic is a **Python job application automation** tool that scrapes LinkedIn
 
 ## Bot Detection Avoidance
 
-Applymatic supports two browser connection modes to reduce the chance of LinkedIn flagging your activity:
+Applymatic supports two browser connection modes to reduce the chance of platforms flagging your activity:
 
 - **Connect to existing browser** (recommended) — attach to an already logged-in Chrome or Edge instance via Chrome DevTools Protocol (CDP). LinkedIn sees your normal browser profile, cookies, and session history.
 - **Launch new Chromium instance** — Playwright launches a fresh browser with a realistic user agent. Sessions are saved to `session.json` after first login so subsequent runs skip the login step.
 
 ---
 
-## LinkedIn Job Scraper Setup
+## Setup
 
 > **Requirements:** Python 3.8+ installed on your machine.
 
@@ -71,7 +71,7 @@ Open your browser at `http://localhost:8501`
 
 ---
 
-## How to Automate LinkedIn Easy Apply
+## How to Automate Job Applications
 
 ### Set Up Your Profile
 
@@ -128,7 +128,7 @@ applymatic/
 ├── ui.py             # Streamlit UI
 ├── applyClass.py     # Batch apply logic with stall detection
 ├── formFiller.py     # Form detection and field filling
-├── loginClass.py     # LinkedIn login handler with session persistence
+├── loginClass.py     # Login handler with session persistence
 ├── questionCache.py  # Caches Q&A and manages profile.json
 ├── toolbox.py        # URL builder, scraper, CSV utilities, human delay
 └── requirements.txt  # Python dependencies
@@ -142,7 +142,7 @@ The following files are in `.gitignore` and are **never committed to the repo:**
 
 | File | Contents |
 |---|---|
-| `cred.json` | LinkedIn credentials |
+| `cred.json` | Login credentials |
 | `profile.json` | Your personal info |
 | `jobs.csv` | Scraped job listings |
 | `questions.json` | Cached application answers |
