@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Applymatic — Automate Your LinkedIn Job Applications</title>
+    <meta name="description" content="Automate LinkedIn job applications with Python, Playwright and Streamlit. Scrapes listings and auto-fills Easy Apply forms.">
+    <meta property="og:title" content="Applymatic — Automate Your LinkedIn Job Applications">
+    <meta property="og:description" content="Automate LinkedIn job applications with Python, Playwright and Streamlit.">
+    <meta property="og:type" content="website">
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+    <style>
+        *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+        :root {
+            --bg:           #0a0a0a;
+            --surface:      #111111;
+            --surface-2:    #1a1a1a;
+            --border:       #222222;
+            --border-hover: #333333;
+            --text:         #ededed;
+            --muted:        #888888;
+            --accent:       #6366f1;
+            --green:        #22c55e;
+            --font:         'Inter', sans-serif;
+            --mono:         'JetBrains Mono', monospace;
+        }
+
+        html { scroll-behavior: smooth; }
+
+        body {
+            background: var(--bg);
+            color: var(--text);
+            font-family: var(--font);
+            font-size: 16px;
+            line-height: 1.6;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        .container { max-width: 1100px; margin: 0 auto; padding: 0 24px; }
+
+        /* NAV */
+        nav {
+            position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+            border-bottom: 1px solid var(--border);
+            background: rgba(10,10,10,0.85);
+            backdrop-filter: blur(12px);
+        }
+        .nav-inner {
+            display: flex; align-items: center; justify-content: space-between;
+            height: 60px; max-width: 1100px; margin: 0 auto; padding: 0 24px;
+        }
+        .nav-logo {
+            font-size: 18px; font-weight: 700; color: var(--text);
+            text-decoration: none; letter-spacing: -0.5px;
+        }
+        .nav-logo span { color: var(--accent); }
+        .nav-links { display: flex; align-items: center; gap: 24px; }
+        .nav-links a { color: var(--muted); text-decoration: none; font-size: 14px; transition: color 0.2s; }
+        .nav-links a:hover { color: var(--text); }
+
+        .btn {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 8px 16px; border-radius: 8px; font-size: 14px;
+            font-weight: 500; text-decoration: none; transition: all 0.2s;
+            cursor: pointer; border: none; font-family: var(--font);
+        }
+        .btn-primary { background: var(--accent); color: white; }
+        .btn-primary:hover { background: #5558e3; transform: translateY(-1px); }
+        .btn-ghost { background: transparent; color: var(--text); border: 1px solid var(--border); }
+        .btn-ghost:hover { border-color: var(--border-hover); background: var(--surface); }
+
+        /* HERO */
+        .hero { padding: 160px 0 100px; text-align: center; }
+
+        .hero-badge {
+            display: inline-flex; align-items: center; gap: 8px;
+            padding: 4px 14px; border: 1px solid var(--border); border-radius: 100px;
+            font-size: 12px; color: var(--muted); margin-bottom: 32px; font-family: var(--mono);
+        }
+        .dot {
+            width: 6px; height: 6px; background: var(--green);
+            border-radius: 50%; animation: pulse 2s infinite;
+        }
+        @keyframes pulse {
+            0%, 100% { opacity: 1; }
+            50%       { opacity: 0.3; }
+        }
+
+        h1 {
+            font-size: clamp(40px, 6vw, 72px); font-weight: 700;
+            line-height: 1.1; letter-spacing: -2px; margin-bottom: 24px;
+            background: linear-gradient(135deg, #fff 0%, #666 100%);
+            -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;
+        }
+        .hero-sub { font-size: 18px; color: var(--muted); max-width: 520px; margin: 0 auto 40px; line-height: 1.7; }
+        .hero-actions { display: flex; align-items: center; justify-content: center; gap: 12px; flex-wrap: wrap; }
+
+        .hero-stack { display: flex; align-items: center; justify-content: center; gap: 8px; margin-top: 48px; flex-wrap: wrap; }
+        .badge {
+            padding: 4px 10px; background: var(--surface); border: 1px solid var(--border);
+            border-radius: 6px; font-size: 12px; color: var(--muted); font-family: var(--mono);
+        }
+
+        hr.divider { border: none; border-top: 1px solid var(--border); }
+
+        /* SECTIONS */
+        .section { padding: 80px 0; }
+        .section-label {
+            font-size: 12px; font-weight: 600; letter-spacing: 1.5px;
+            text-transform: uppercase; color: var(--accent); margin-bottom: 12px; font-family: var(--mono);
+        }
+        .section-title { font-size: clamp(24px, 3vw, 36px); font-weight: 700; letter-spacing: -1px; margin-bottom: 16px; }
+        .section-sub { font-size: 16px; color: var(--muted); max-width: 480px; margin-bottom: 48px; }
+
+        /* FEATURES GRID */
+        .features-grid {
+            display: grid; grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));
+            gap: 1px; background: var(--border); border: 1px solid var(--border);
+            border-radius: 12px; overflow: hidden;
+        }
+        .feature-card { background: var(--bg); padding: 28px; transition: background 0.2s; }
+        .feature-card:hover { background: var(--surface); }
+        .feature-icon { font-size: 22px; margin-bottom: 14px; }
+        .feature-title { font-size: 15px; font-weight: 600; margin-bottom: 8px; }
+        .feature-desc { font-size: 14px; color: var(--muted); line-height: 1.6; }
+
+        /* MODES */
+        .modes-grid { display: grid; grid-template-columns: repeat(3, 1fr); gap: 16px; margin-top: 48px; }
+        .mode-card {
+            background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; padding: 24px;
+        }
+        .mode-number { font-family: var(--mono); font-size: 12px; color: var(--accent); margin-bottom: 8px; }
+        .mode-title { font-size: 15px; font-weight: 600; margin-bottom: 6px; }
+        .mode-desc { font-size: 13px; color: var(--muted); line-height: 1.6; }
+
+        /* TERMINAL */
+        .install-block { background: var(--surface); border: 1px solid var(--border); border-radius: 12px; overflow: hidden; }
+        .terminal-bar {
+            display: flex; align-items: center; gap: 8px; padding: 12px 16px;
+            border-bottom: 1px solid var(--border); background: var(--surface-2);
+        }
+        .tdot { width: 10px; height: 10px; border-radius: 50%; }
+        .terminal-body { padding: 24px; font-family: var(--mono); font-size: 13px; line-height: 2.1; }
+        .comment { color: #444; }
+        .prompt { color: var(--green); }
+        .cmd { color: var(--text); }
+
+        /* README LINK */
+        .readme-link {
+            display: flex; align-items: center; justify-content: space-between;
+            padding: 20px 24px; background: var(--surface); border: 1px solid var(--border);
+            border-radius: 10px; text-decoration: none; transition: all 0.2s; margin-top: 24px;
+        }
+        .readme-link:hover { border-color: var(--border-hover); background: var(--surface-2); }
+        .readme-link-left { display: flex; align-items: center; gap: 14px; }
+        .readme-link-title { font-size: 14px; font-weight: 600; color: var(--text); }
+        .readme-link-sub { font-size: 13px; color: var(--muted); margin-top: 2px; }
+        .readme-link-arrow { color: var(--muted); font-size: 18px; }
+
+        /* FOOTER */
+        footer { border-top: 1px solid var(--border); padding: 40px 0; }
+        .footer-inner { display: flex; align-items: flex-start; justify-content: space-between; gap: 24px; flex-wrap: wrap; }
+        .footer-disclaimer { font-size: 12px; color: var(--muted); max-width: 560px; line-height: 1.8; }
+        .footer-right { display: flex; flex-direction: column; align-items: flex-end; gap: 10px; }
+        .footer-right a { font-size: 13px; color: var(--muted); text-decoration: none; transition: color 0.2s; }
+        .footer-right a:hover { color: var(--text); }
+
+        @media (max-width: 700px) {
+            .modes-grid { grid-template-columns: 1fr; }
+            .footer-inner { flex-direction: column; }
+            .footer-right { align-items: flex-start; }
+            .nav-links a:not(.btn) { display: none; }
+        }
+    </style>
+</head>
+<body>
+
+<nav>
+    <div class="nav-inner">
+        <a href="#" class="nav-logo">Apply<span>matic</span></a>
+        <div class="nav-links">
+            <a href="#features">Features</a>
+            <a href="#install">Install</a>
+            <a href="https://github.com/APierce-Ptak/Applymatic" target="_blank" class="btn btn-ghost">GitHub ↗</a>
+        </div>
+    </div>
+</nav>
+
+<section class="hero">
+    <div class="container">
+        <div class="hero-badge"><span class="dot"></span>Open Source &nbsp;·&nbsp; Python &nbsp;·&nbsp; Playwright</div>
+        <h1>Automate Your LinkedIn<br>Job Applications</h1>
+        <p class="hero-sub">Applymatic scrapes LinkedIn job listings and auto-fills Easy Apply forms using your saved profile — so you can apply at scale without the repetition.</p>
+        <div class="hero-actions">
+            <a href="https://github.com/APierce-Ptak/Applymatic" target="_blank" class="btn btn-primary">View on GitHub</a>
+            <a href="#install" class="btn btn-ghost">Get Started</a>
+        </div>
+        <div class="hero-stack">
+            <span class="badge">python</span>
+            <span class="badge">playwright</span>
+            <span class="badge">streamlit</span>
+            <span class="badge">linkedin-automation</span>
+            <span class="badge">easy-apply</span>
+        </div>
+    </div>
+</section>
+
+<hr class="divider">
+
+<section class="section" id="features">
+    <div class="container">
+        <p class="section-label">Features</p>
+        <h2 class="section-title">Everything you need to apply faster</h2>
+        <p class="section-sub">Built for developers who want full control over their job search automation.</p>
+
+        <div class="features-grid">
+            <div class="feature-card">
+                <div class="feature-icon">🔍</div>
+                <div class="feature-title">LinkedIn Job Scraper</div>
+                <div class="feature-desc">Search by keyword, location, distance, date posted, and Easy Apply filter. Deduplicates results and saves to CSV automatically.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🤖</div>
+                <div class="feature-title">Auto Form Filling</div>
+                <div class="feature-desc">Handles text inputs, dropdowns, radio buttons, and location autocomplete across multi-page Easy Apply flows.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🧠</div>
+                <div class="feature-title">Answer Caching</div>
+                <div class="feature-desc">Saves your answers to application questions. Once answered, never asked again across future runs.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">👤</div>
+                <div class="feature-title">Profile Matching</div>
+                <div class="feature-desc">Maps your profile fields — name, salary, work authorization, years of experience per technology — directly to form inputs.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">🛡️</div>
+                <div class="feature-title">Bot Detection Avoidance</div>
+                <div class="feature-desc">Connect to your existing logged-in Chrome or Edge via CDP, or use session persistence so fresh logins are rare.</div>
+            </div>
+            <div class="feature-card">
+                <div class="feature-icon">💻</div>
+                <div class="feature-title">Cross Platform</div>
+                <div class="feature-desc">Runs on Windows, Mac, and Linux. Streamlit UI works in any browser — no CLI required after setup.</div>
+            </div>
+        </div>
+
+        <div style="margin-top: 64px;">
+            <p class="section-label">Modes</p>
+            <h2 class="section-title">Three ways to run</h2>
+            <div class="modes-grid">
+                <div class="mode-card">
+                    <div class="mode-number">01</div>
+                    <div class="mode-title">Scrape Only</div>
+                    <div class="mode-desc">Find and save jobs to CSV without applying. Review before you commit.</div>
+                </div>
+                <div class="mode-card">
+                    <div class="mode-number">02</div>
+                    <div class="mode-title">Scrape &amp; Apply</div>
+                    <div class="mode-desc">Search and immediately apply in a single run. Set a max application limit.</div>
+                </div>
+                <div class="mode-card">
+                    <div class="mode-number">03</div>
+                    <div class="mode-title">Apply from CSV</div>
+                    <div class="mode-desc">Apply to a previously scraped list at any time. Full control over timing.</div>
+                </div>
+            </div>
+        </div>
+    </div>
+</section>
+
+<hr class="divider">
+
+<section class="section" id="install">
+    <div class="container">
+        <p class="section-label">Quick Start</p>
+        <h2 class="section-title">Up and running in minutes</h2>
+        <p class="section-sub">Requires Python 3.8+</p>
+
+        <div class="install-block">
+            <div class="terminal-bar">
+                <div class="tdot" style="background:#ff5f57"></div>
+                <div class="tdot" style="background:#febc2e"></div>
+                <div class="tdot" style="background:#28c840"></div>
+            </div>
+            <div class="terminal-body">
+                <div><span class="comment"># clone the repo</span></div>
+                <div><span class="prompt">$ </span><span class="cmd">git clone https://github.com/APierce-Ptak/Applymatic.git &amp;&amp; cd Applymatic</span></div>
+                <div>&nbsp;</div>
+                <div><span class="comment"># create and activate a virtual environment</span></div>
+                <div><span class="prompt">$ </span><span class="cmd">python -m venv venv &amp;&amp; venv\Scripts\activate</span></div>
+                <div>&nbsp;</div>
+                <div><span class="comment"># install dependencies</span></div>
+                <div><span class="prompt">$ </span><span class="cmd">pip install -r requirements.txt</span></div>
+                <div>&nbsp;</div>
+                <div><span class="comment"># install browser</span></div>
+                <div><span class="prompt">$ </span><span class="cmd">playwright install chromium</span></div>
+                <div>&nbsp;</div>
+                <div><span class="comment"># run</span></div>
+                <div><span class="prompt">$ </span><span class="cmd">streamlit run app.py</span></div>
+            </div>
+        </div>
+
+        <a href="https://github.com/APierce-Ptak/Applymatic/blob/main/README.md" target="_blank" class="readme-link">
+            <div class="readme-link-left">
+                <div style="font-size:20px">📄</div>
+                <div>
+                    <div class="readme-link-title">Full Documentation</div>
+                    <div class="readme-link-sub">Profile setup, Geo ID guide, project structure, and security notes</div>
+                </div>
+            </div>
+            <div class="readme-link-arrow">→</div>
+        </a>
+    </div>
+</section>
+
+<footer>
+    <div class="container">
+        <div class="footer-inner">
+            <p class="footer-disclaimer">
+                ⚠️ This tool interacts with LinkedIn in ways that may violate their Terms of Service. Your account could be restricted or banned. Use at your own risk. The author is not responsible for any consequences resulting from its use.
+            </p>
+            <div class="footer-right">
+                <a href="https://github.com/APierce-Ptak/Applymatic" target="_blank">GitHub ↗</a>
+                <a href="https://github.com/APierce-Ptak/Applymatic/blob/main/README.md" target="_blank">README ↗</a>
+            </div>
+        </div>
+    </div>
+</footer>
+
+</body>
+</html>
