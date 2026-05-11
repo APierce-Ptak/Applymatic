@@ -22,8 +22,13 @@ class AutoApply:
                     .some(p => p.innerText.trim() === 'Application submitted')
             """)
             if already_submitted:
-                debugLogger.log("Previously submitted — skipping")
                 return None
+
+            closed = page.evaluate("""
+                () => document.body.innerText.includes('No longer accepting applications')
+            """)
+            if closed:
+                return "closed"
 
             button = page.query_selector("a[aria-label='Easy Apply to this job']")
             if not button:
@@ -87,7 +92,11 @@ class AutoApply:
 
         nav_result = self.navigate_to_job(page, job["url"])
         if nav_result is None:
-            return None  # previously submitted, not a failure
+            debugLogger.log(f"Previously submitted — skipping: {job['title']} at {job['company']}")
+            return None
+        if nav_result == "closed":
+            debugLogger.log(f"No longer accepting applications — skipping: {job['title']} at {job['company']}")
+            return None
         if not nav_result:
             return False
 
