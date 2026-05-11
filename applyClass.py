@@ -159,12 +159,14 @@ class AutoApply:
             result = self.apply_to_job(page, job)
             if result is True:
                 results["applied"] += 1
+                max_str = f"/{max_applications}" if max_applications is not None else ""
+                debugLogger.log(f"[{results['applied']}{max_str}] Applied: {job.get('title')} at {job.get('company')}")
             elif result is None:
                 results["skipped"] += 1
+                debugLogger.log(f"Skipped: {job.get('title')} at {job.get('company')}")
             else:
                 results["failed"] += 1
-
-            debugLogger.log(f"\nFinished: {job.get('title')} at {job.get('company')}")
+                debugLogger.log(f"Failed: {job.get('title')} at {job.get('company')}")
 
         debugLogger.log(f"\nBatch complete — {results['applied']} applied, {results['skipped']} skipped, {results['failed']} failed")
         return results
