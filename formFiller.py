@@ -21,11 +21,16 @@ class FormFiller:
         except:
             return None
 
-    def match_profile(self, label):
+    def match_profile(self, label, options=None):
         label_lower = label.lower()
 
         # check technology-specific experience first
         if "year" in label_lower or "experience" in label_lower:
+            # if the available options are yes/no style, don't inject a years value
+            if options:
+                options_lower = [str(o).lower() for o in options]
+                if any(o in ("yes", "no") for o in options_lower):
+                    return None
             tech_map = self.cache.profile.get("years_experience_technologies", {})
             for tech, years in tech_map.items():
                 if tech.lower() in label_lower:
@@ -162,7 +167,7 @@ class FormFiller:
                     if r.get_attribute("data-test-text-selectable-option__input")
                 ]
 
-                answer = self.match_profile(question_text) or self.cache.get_answer(question_text, options=options)
+                answer = self.match_profile(question_text, options=options) or self.cache.get_answer(question_text, options=options)
                 if answer:
                     radio = fieldset.query_selector(f"input[data-test-text-selectable-option__input='{answer}']")
                     if radio:
@@ -170,6 +175,11 @@ class FormFiller:
                         debugLogger.log(f"Radio set: {question_text} → {answer}")
         except Exception as e:
             debugLogger.log(f"Radio buttons error: {e}")
+
+    def _type_into(self, input_el, value):
+        input_el.click()
+        input_el.fill("")
+        input_el.type(str(value), delay=40)
 
     def _fill_text_inputs(self, page):
         try:
@@ -186,9 +196,51 @@ class FormFiller:
                     if any(word in label.lower() for word in ["city", "location", "where"]):
                         self.fill_location_autocomplete(page, input_el, str(answer))
                     else:
-                        input_el.fill(str(answer))
+                        self._type_into(input_el, answer)
+                        debugLogger.log(f"Text filled: {label} → {answer}")
+                else:
+                    debugLogger.log(f"No answer for text field: {label}")
         except Exception as e:
             debugLogger.log(f"Text inputs error: {e}")
+
+    def _fill_numeric_inputs(self, page):
+        try:
+            for input_el in page.query_selector_all("[data-test-numeric-text-entity-form-component] input"):
+                label = self.get_label(page, input_el)
+                if not label:
+                    continue
+                if input_el.input_value().strip():
+                    debugLogger.log(f"Already filled: {label}")
+                    page.wait_for_timeout(300)
+                    continue
+                answer = self.match_profile(label)
+                if answer:
+                    self._type_into(input_el, answer)
+                    debugLogger.log(f"Numeric filled: {label} → {answer}")
+                else:
+                    debugLogger.log(f"No answer for numeric field: {label}")
+        except Exception as e:
+            debugLogger.log(f"Numeric inputs error: {e}")
+
+    def _fill_checkboxes(self, page):
+        try:
+            for fieldset in page.query_selector_all("[data-test-form-builder-boolean-form-component='true']"):
+                label_el = fieldset.query_selector("[data-test-form-builder-boolean-form-component__title]")
+                if not label_el:
+                    continue
+                question_text = label_el.inner_text().strip().split('\n')[0].strip()
+                checkbox = fieldset.query_selector("input[type='checkbox']")
+                if not checkbox:
+                    continue
+                if checkbox.is_checked():
+                    debugLogger.log(f"Checkbox already checked: {question_text}")
+                    continue
+                answer = self.match_profile(question_text) or self.cache.get_answer(question_text, options=["Yes", "No"])
+                if answer and str(answer).lower() in ("yes", "true", "1"):
+                    checkbox.check()
+                    debugLogger.log(f"Checkbox checked: {question_text}")
+        except Exception as e:
+            debugLogger.log(f"Checkbox error: {e}")
 
     def _fill_selects(self, page):
         try:
@@ -206,7 +258,7 @@ class FormFiller:
                         .map(o => o.value)
                         .filter(v => v !== 'Select an option')
                 """, select)
-                answer = self.match_profile(label) or self.cache.get_answer(label, options=options)
+                answer = self.match_profile(label, options=options) or self.cache.get_answer(label, options=options)
                 if answer:
                     try:
                         select.select_option(value=answer, timeout=2000)
@@ -237,7 +289,9 @@ class FormFiller:
             self._fill_follow_checkbox(page)
             self._fill_sponsorship(page)
             self._fill_radio_buttons(page)
+            self._fill_checkboxes(page)
             self._fill_text_inputs(page)
+            self._fill_numeric_inputs(page)
             self._fill_selects(page)
             self._fill_textareas(page)
             page.wait_for_timeout(1000)

@@ -112,7 +112,18 @@ class AutoApply:
             current_fingerprint = self.get_form_fingerprint(page)
             if current_fingerprint and current_fingerprint == last_fingerprint:
                 stall_count += 1
-                debugLogger.log(f"Page did not advance — possible unfilled required field (stall {stall_count}/{max_stalls})")
+                debugLogger.log(f"Page did not advance (stall {stall_count}/{max_stalls})")
+                try:
+                    errors = page.evaluate("""
+                        () => Array.from(document.querySelectorAll('[data-test-form-element-error-message]'))
+                            .map(el => el.innerText.trim()).filter(t => t.length > 0)
+                    """)
+                    for err in errors:
+                        debugLogger.error(f"Validation error: {err}")
+                    if not errors:
+                        debugLogger.log("No validation errors detected — field may be missing from our handlers")
+                except Exception:
+                    pass
                 if stall_count >= max_stalls:
                     debugLogger.log("Stuck on same page too many times — skipping this job")
                     return False
@@ -157,16 +168,20 @@ class AutoApply:
                 continue
 
             result = self.apply_to_job(page, job)
+            title, company = job.get('title', 'Unknown'), job.get('company', 'Unknown')
             if result is True:
                 results["applied"] += 1
                 max_str = f"/{max_applications}" if max_applications is not None else ""
-                debugLogger.log(f"[{results['applied']}{max_str}] Applied: {job.get('title')} at {job.get('company')}")
+                debugLogger.log(f"[{results['applied']}{max_str}] Applied: {title} at {company}")
+                debugLogger.record_outcome("applied", title, company)
             elif result is None:
                 results["skipped"] += 1
-                debugLogger.log(f"Skipped: {job.get('title')} at {job.get('company')}")
+                debugLogger.log(f"Skipped: {title} at {company}")
+                debugLogger.record_outcome("skipped", title, company)
             else:
                 results["failed"] += 1
-                debugLogger.log(f"Failed: {job.get('title')} at {job.get('company')}")
+                debugLogger.log(f"Failed: {title} at {company}")
+                debugLogger.record_outcome("failed", title, company)
 
         debugLogger.log(f"\nBatch complete — {results['applied']} applied, {results['skipped']} skipped, {results['failed']} failed")
         return results
