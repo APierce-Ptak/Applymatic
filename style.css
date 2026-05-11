@@ -1,0 +1,281 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:ital,opsz,wght@0,14..32,300;0,14..32,400;0,14..32,500;0,14..32,600;0,14..32,700;1,14..32,400&display=swap');
+
+/*
+  Palette
+  #595959 — border / subtle structure
+  #7f7f7f — muted labels, secondary text
+  #a5a5a5 — body text, descriptions
+  #cccccc — primary text, interactive labels
+  #f2f2f2 — headings, primary button bg
+*/
+
+/* ─── Base ─────────────────────────────────────────────────── */
+.stApp {
+    background-color: #111111;
+    color: #a5a5a5;
+    font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.block-container {
+    padding-top: 2.5rem;
+    padding-bottom: 4rem;
+    max-width: 900px;
+}
+
+/* ─── Typography ────────────────────────────────────────────── */
+h1 {
+    font-family: 'Inter', sans-serif;
+    font-size: 1.6rem !important;
+    font-weight: 600 !important;
+    color: #f2f2f2 !important;
+    letter-spacing: -0.025em;
+    margin-bottom: 0 !important;
+}
+
+h2 {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.68rem !important;
+    font-weight: 600 !important;
+    color: #595959 !important;
+    letter-spacing: 0.12em !important;
+    text-transform: uppercase !important;
+    margin-top: 0.25rem !important;
+    margin-bottom: 0.75rem !important;
+}
+
+h3 {
+    font-family: 'Inter', sans-serif;
+    font-weight: 500 !important;
+    color: #cccccc !important;
+    font-size: 0.95rem !important;
+}
+
+p, .stMarkdown {
+    font-family: 'Inter', sans-serif;
+    font-size: 0.875rem;
+    color: #a5a5a5;
+    line-height: 1.65;
+}
+
+/* ─── Divider ───────────────────────────────────────────────── */
+hr {
+    border: none !important;
+    border-top: 1px solid #2a2a2a !important;
+    margin: 1.75rem 0 !important;
+}
+
+/* ─── Primary Button ────────────────────────────────────────── */
+.stButton > button[kind="primary"] {
+    background: #f2f2f2;
+    color: #111111;
+    border: none;
+    font-family: 'Inter', sans-serif;
+    font-weight: 600;
+    font-size: 0.875rem;
+    letter-spacing: -0.01em;
+    border-radius: 8px;
+    padding: 0.55rem 1.75rem;
+    transition: background 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stButton > button[kind="primary"]:hover {
+    background: #cccccc;
+    box-shadow: 0 4px 14px rgba(242, 242, 242, 0.12);
+}
+
+.stButton > button[kind="primary"]:disabled {
+    background: #2a2a2a;
+    color: #595959;
+}
+
+/* ─── Secondary / Ghost Buttons ─────────────────────────────── */
+.stButton > button {
+    background: #1a1a1a;
+    color: #a5a5a5;
+    border: 1px solid #2e2e2e;
+    font-family: 'Inter', sans-serif;
+    font-size: 0.875rem;
+    font-weight: 500;
+    border-radius: 8px;
+    transition: border-color 0.15s ease, color 0.15s ease;
+}
+
+.stButton > button:hover {
+    border-color: #595959;
+    color: #cccccc;
+}
+
+/* ─── Text & Number Inputs ──────────────────────────────────── */
+.stTextInput > div > div > input,
+.stNumberInput > div > div > input {
+    background: #1a1a1a !important;
+    color: #cccccc !important;
+    border: 1px solid #2e2e2e !important;
+    border-radius: 8px !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.875rem !important;
+    transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.stTextInput > div > div > input:focus,
+.stNumberInput > div > div > input:focus {
+    border-color: #7f7f7f !important;
+    box-shadow: 0 0 0 3px rgba(127, 127, 127, 0.1) !important;
+}
+
+.stTextInput label,
+.stNumberInput label {
+    font-size: 0.78rem !important;
+    font-weight: 500 !important;
+    color: #7f7f7f !important;
+    letter-spacing: 0.01em;
+}
+
+/* ─── Selectbox ─────────────────────────────────────────────── */
+.stSelectbox > div > div {
+    background: #1a1a1a !important;
+    color: #cccccc !important;
+    border: 1px solid #2e2e2e !important;
+    border-radius: 8px !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.875rem !important;
+}
+
+.stSelectbox label {
+    font-size: 0.78rem !important;
+    font-weight: 500 !important;
+    color: #7f7f7f !important;
+}
+
+/* ─── Radio ─────────────────────────────────────────────────── */
+.stRadio > label {
+    font-size: 0.78rem !important;
+    font-weight: 500 !important;
+    color: #7f7f7f !important;
+    letter-spacing: 0.01em;
+}
+
+.stRadio div[role="radiogroup"] label {
+    font-size: 0.875rem !important;
+    color: #a5a5a5 !important;
+    font-weight: 400 !important;
+}
+
+/* ─── Toggle / Checkbox ─────────────────────────────────────── */
+.stCheckbox > label,
+[data-testid="stCheckbox"] label {
+    font-size: 0.875rem !important;
+    color: #a5a5a5 !important;
+    font-weight: 400 !important;
+}
+
+/* ─── Slider ────────────────────────────────────────────────── */
+.stSlider > label {
+    font-size: 0.78rem !important;
+    font-weight: 500 !important;
+    color: #7f7f7f !important;
+}
+
+.stSlider [data-baseweb="slider"] [data-testid="stThumbValue"] {
+    color: #cccccc;
+}
+
+/* ─── Expander ──────────────────────────────────────────────── */
+.streamlit-expanderHeader {
+    background: #1a1a1a !important;
+    border: 1px solid #2e2e2e !important;
+    border-radius: 8px !important;
+    color: #cccccc !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.875rem !important;
+    font-weight: 500 !important;
+    transition: border-color 0.15s ease;
+}
+
+.streamlit-expanderHeader:hover {
+    border-color: #595959 !important;
+}
+
+.streamlit-expanderContent {
+    background: #161616 !important;
+    border: 1px solid #2e2e2e !important;
+    border-top: none !important;
+    border-radius: 0 0 8px 8px !important;
+}
+
+.streamlit-expanderContent p,
+.streamlit-expanderContent .stMarkdown {
+    color: #a5a5a5;
+    font-size: 0.85rem;
+}
+
+/* ─── Alerts ────────────────────────────────────────────────── */
+div[data-testid="stNotification"],
+.stAlert {
+    border-radius: 8px !important;
+    font-family: 'Inter', sans-serif !important;
+    font-size: 0.85rem !important;
+}
+
+div[data-testid="stNotification"][kind="success"],
+.stSuccess {
+    background: rgba(165, 165, 165, 0.06) !important;
+    border: 1px solid #595959 !important;
+    color: #cccccc !important;
+    border-radius: 8px !important;
+}
+
+div[data-testid="stNotification"][kind="error"],
+.stError {
+    background: rgba(89, 89, 89, 0.1) !important;
+    border: 1px solid #595959 !important;
+    color: #f2f2f2 !important;
+    border-radius: 8px !important;
+}
+
+div[data-testid="stNotification"][kind="info"],
+.stInfo {
+    background: rgba(89, 89, 89, 0.06) !important;
+    border: 1px solid #2e2e2e !important;
+    color: #a5a5a5 !important;
+    border-radius: 8px !important;
+}
+
+div[data-testid="stNotification"][kind="warning"],
+.stWarning {
+    background: rgba(89, 89, 89, 0.08) !important;
+    border: 1px solid #595959 !important;
+    color: #cccccc !important;
+    border-radius: 8px !important;
+}
+
+/* ─── Dialog / Modal ────────────────────────────────────────── */
+[data-testid="stModal"] > div {
+    background: #1a1a1a !important;
+    border: 1px solid #2e2e2e !important;
+    border-radius: 12px !important;
+}
+
+/* ─── Spinner ───────────────────────────────────────────────── */
+.stSpinner > div {
+    border-top-color: #7f7f7f !important;
+}
+
+/* ─── Scrollbar ─────────────────────────────────────────────── */
+::-webkit-scrollbar {
+    width: 5px;
+    height: 5px;
+}
+
+::-webkit-scrollbar-track {
+    background: #111111;
+}
+
+::-webkit-scrollbar-thumb {
+    background: #2e2e2e;
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: #595959;
+}
