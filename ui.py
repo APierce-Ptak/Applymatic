@@ -498,17 +498,25 @@ hr {
 
     f1, f2, f3, _ = st.columns([1, 1, 1, 6])
     with f1:
-        if st.button("All",        key="filter_all"):  st.session_state.job_filter = "all"
+        if st.button("All",        key="filter_all"):     st.session_state.job_filter = "all"
     with f2:
-        if st.button("Easy Apply", key="filter_easy"): st.session_state.job_filter = "easy"
+        if st.button("Easy Apply", key="filter_easy"):    st.session_state.job_filter = "easy"
     with f3:
-        if st.button("External",   key="filter_ext"):  st.session_state.job_filter = "external"
+        if st.button("Applied",    key="filter_applied"): st.session_state.job_filter = "applied"
+
+    applied_set = set()
+    if os.path.exists("applied.json"):
+        try:
+            with open("applied.json", "r", encoding="utf-8") as f:
+                applied_set = {e["label"].lower() for e in json.load(f)}
+        except Exception:
+            pass
 
     rows = _load_jobs_for_table()
     if st.session_state.job_filter == "easy":
         rows = [r for r in rows if r["Type"] == "Easy Apply"]
-    elif st.session_state.job_filter == "external":
-        rows = [r for r in rows if r["Type"] == "External"]
+    elif st.session_state.job_filter == "applied":
+        rows = [r for r in rows if f"{r['Title']} at {r['Company']}".lower() in applied_set]
 
     if rows:
         st.dataframe(rows, use_container_width=True, hide_index=True)

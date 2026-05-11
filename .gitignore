@@ -24,6 +24,7 @@ session.json
 
 # Debug output
 debug.json
+applied.json
 
 # Sensitive personal data
 profile.json
