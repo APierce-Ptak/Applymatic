@@ -22,11 +22,15 @@ resume.pdf
 linkedin_session/
 session.json
 
+# Debug output
+debug.json
+
 # Sensitive personal data
 profile.json
 cred.json
 questions.json
 jobs.csv
 locations.json
+config.json
 CLAUDE.md
 resume.pdf

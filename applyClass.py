@@ -3,6 +3,7 @@ import os
 from questionCache import QuestionCache
 from formFiller import FormFiller
 from toolbox import human_delay
+import debugLogger
 
 class AutoApply:
     def __init__(self, follow_companies=False, requires_sponsorship=False):
@@ -15,11 +16,20 @@ class AutoApply:
             page.wait_for_load_state("load")
             human_delay(1500, 3000)
 
+            # Check for previously submitted before looking for the apply button
+            already_submitted = page.evaluate("""
+                () => Array.from(document.querySelectorAll('p'))
+                    .some(p => p.innerText.trim() === 'Application submitted')
+            """)
+            if already_submitted:
+                debugLogger.log("Previously submitted — skipping")
+                return None
+
             button = page.query_selector("a[aria-label='Easy Apply to this job']")
             if not button:
                 button = page.query_selector("[aria-label*='Easy Apply']")
             if not button:
-                print(f"No Easy Apply button found at {job_url}")
+                debugLogger.log(f"No Easy Apply button found at {job_url}")
                 return False
 
             button.dispatch_event("click")
@@ -27,7 +37,7 @@ class AutoApply:
             return True
 
         except Exception as e:
-            print(f"Error navigating to job: {e}")
+            debugLogger.log(f"Error navigating to job: {e}")
             return False
 
     def close_modal(self, page):
@@ -39,38 +49,46 @@ class AutoApply:
             if done_btn:
                 done_btn.click()
                 human_delay(800, 1500)
-                print("Modal closed")
+                debugLogger.log("Modal closed")
         except Exception as e:
-            print(f"Could not close modal: {e}")
+            debugLogger.log(f"Could not close modal: {e}")
 
     def auto_submit(self, page):
         submit_btn = page.query_selector("[data-live-test-easy-apply-submit-button]")
         if submit_btn:
             submit_btn.click()
             human_delay(1500, 3000)
-            print("Application submitted!")
+            debugLogger.log("Application submitted!")
             self.close_modal(page)
             return True
-        print("Submit button not found")
+        debugLogger.log("Submit button not found")
         return False
 
     def get_form_fingerprint(self, page):
-        """Returns a string that identifies the current form state by its visible field labels."""
         try:
-            labels = page.evaluate("""
-                () => Array.from(document.querySelectorAll('label, legend'))
-                    .map(el => el.innerText.trim())
-                    .filter(t => t.length > 0)
-                    .join('|')
+            return page.evaluate("""
+                () => {
+                    const fields = [
+                        ...document.querySelectorAll('[data-test-single-line-text-form-component] input'),
+                        ...document.querySelectorAll('[data-test-text-entity-list-form-select]'),
+                        ...document.querySelectorAll('[data-test-form-builder-radio-button-form-component] input[type="radio"]'),
+                        ...document.querySelectorAll('textarea'),
+                    ];
+                    return fields
+                        .map(el => el.getAttribute('name') || el.getAttribute('id') || el.getAttribute('aria-label') || el.tagName)
+                        .join('|');
+                }
             """)
-            return labels
         except:
             return ""
 
     def apply_to_job(self, page, job):
-        print(f"\nApplying to: {job['title']} at {job['company']}")
+        debugLogger.log(f"\nApplying to: {job['title']} at {job['company']}")
 
-        if not self.navigate_to_job(page, job["url"]):
+        nav_result = self.navigate_to_job(page, job["url"])
+        if nav_result is None:
+            return None  # previously submitted, not a failure
+        if not nav_result:
             return False
 
         max_pages = 10
@@ -79,15 +97,15 @@ class AutoApply:
         max_stalls = 2  # allow up to 2 retries on a stuck page before giving up
 
         for i in range(max_pages):
-            print(f"Form page {i + 1}")
+            debugLogger.log(f"Form page {i + 1}")
 
             # detect if we are stuck on the same form page
             current_fingerprint = self.get_form_fingerprint(page)
             if current_fingerprint and current_fingerprint == last_fingerprint:
                 stall_count += 1
-                print(f"Page did not advance — possible unfilled required field (stall {stall_count}/{max_stalls})")
+                debugLogger.log(f"Page did not advance — possible unfilled required field (stall {stall_count}/{max_stalls})")
                 if stall_count >= max_stalls:
-                    print("Stuck on same page too many times — skipping this job")
+                    debugLogger.log("Stuck on same page too many times — skipping this job")
                     return False
             else:
                 stall_count = 0
@@ -99,35 +117,45 @@ class AutoApply:
             if result == "submit":
                 return self.auto_submit(page)
             elif result == "unknown":
-                print("Could not find Next or Submit — stopping")
+                debugLogger.log("Could not find Next or Submit — stopping")
                 return False
+            else:
+                # Next or Review was found and clicked — form is advancing, reset stall counter
+                stall_count = 0
+                human_delay(1500, 2500)
 
         return False
 
     def apply_single(self, page, job):
         return self.apply_to_job(page, job)
 
-    def apply_batch(self, page, jobs):
-        results = {"applied": 0, "failed": 0}
+    def apply_batch(self, page, jobs, max_applications=None):
+        results = {"applied": 0, "failed": 0, "skipped": 0}
 
         for job in jobs:
+            if max_applications is not None and results["applied"] >= max_applications:
+                debugLogger.log(f"Reached {max_applications} successful applications — stopping")
+                break
+
             if isinstance(job, str):
                 job = {"title": "Unknown", "company": "Unknown", "url": job}
 
             job = {k.strip(): v for k, v in job.items()}
 
             if "title" not in job or "url" not in job:
-                print(f"Skipping job — missing required fields: {job}")
+                debugLogger.log(f"Skipping job — missing required fields: {job}")
                 results["failed"] += 1
                 continue
 
-            success = self.apply_to_job(page, job)
-            if success:
+            result = self.apply_to_job(page, job)
+            if result is True:
                 results["applied"] += 1
+            elif result is None:
+                results["skipped"] += 1
             else:
                 results["failed"] += 1
 
-            print(f"\nFinished: {job.get('title')} at {job.get('company')}")
+            debugLogger.log(f"\nFinished: {job.get('title')} at {job.get('company')}")
 
-        print(f"\nBatch complete — {results['applied']} applied, {results['failed']} failed")
+        debugLogger.log(f"\nBatch complete — {results['applied']} applied, {results['skipped']} skipped, {results['failed']} failed")
         return results

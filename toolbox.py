@@ -6,6 +6,7 @@ import random
 import time
 import requests
 from datetime import datetime
+import debugLogger
 
 
 def human_delay(min_ms=500, max_ms=2000):
@@ -40,7 +41,7 @@ def get_geo_id(city: str):
     key = city.lower().strip()
     if key in locations:
         cached = locations[key]
-        print(f"Location cache hit: {city} → {cached['display']}")
+        debugLogger.log(f"Location cache hit: {city} → {cached['display']}")
         return cached["id"], cached["display"]
 
     # fall back to LinkedIn typeahead API
@@ -57,7 +58,7 @@ def get_geo_id(city: str):
             return top["id"], top["displayName"]
         return None, None
     except Exception as e:
-        print(f"Geo ID lookup failed: {e}")
+        debugLogger.log(f"Geo ID lookup failed: {e}")
         return None, None
 
 
@@ -128,7 +129,7 @@ def scrape_job_cards(page):
             })
 
         except Exception as e:
-            print(f"Error parsing card: {e}")
+            debugLogger.log(f"Error parsing card: {e}")
             continue
 
     return jobs
@@ -185,5 +186,5 @@ def save_jobs_to_csv(jobs, filename="jobs.csv"):
             job["scraped_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
             writer.writerow(job)
 
-    print(f"Saved {len(new_jobs)} new jobs to {filename} ({len(existing_ids)} already existed)")
+    debugLogger.log(f"Saved {len(new_jobs)} new jobs to {filename} ({len(existing_ids)} already existed)")
     return len(new_jobs)

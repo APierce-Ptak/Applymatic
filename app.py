@@ -7,8 +7,10 @@ from playwright.sync_api import sync_playwright
 import loginClass
 import toolbox
 import applyClass
+import debugLogger
 
 CRED_FILE = "cred.json"
+SESSION_FILE = "session.json"
 USER_AGENT = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
 
 BROWSER_PATHS = {
@@ -50,6 +52,25 @@ def launch_browser_with_debugging(browser_type, cdp_port):
     except Exception as e:
         return False, f"Failed to launch {browser_type}: {e}"
 
+def ensure_logged_in(page, poll_interval_ms=3000, max_polls=40):
+    """Wait up to ~2 minutes for the user to complete login in the open browser window."""
+    _logged_in = lambda url: any(s in url for s in ("/feed", "/jobs", "/mynetwork", "/messaging"))
+    if _logged_in(page.url):
+        return True
+    debugLogger.log("Waiting for LinkedIn login — complete any security checks in the browser window...")
+    for _ in range(max_polls):
+        page.wait_for_timeout(poll_interval_ms)
+        if _logged_in(page.url):
+            debugLogger.log("Login confirmed!")
+            try:
+                page.context.storage_state(path=SESSION_FILE)
+                debugLogger.log(f"Session saved to {SESSION_FILE}")
+            except Exception:
+                pass
+            return True
+    debugLogger.error("Login timeout — did not detect successful login after 2 minutes")
+    return False
+
 def get_browser_page(p, browser_mode, cdp_port, email, password):
     if browser_mode == "existing":
         try:
@@ -58,7 +79,7 @@ def get_browser_page(p, browser_mode, cdp_port, email, password):
             page = context.pages[0] if context.pages else context.new_page()
             return browser, page, False
         except Exception as e:
-            print(f"CDP connection failed: {e}")
+            debugLogger.error(f"CDP connection failed: {e}")
             return None, None, False
     else:
         browser = p.chromium.launch(headless=False)
@@ -68,10 +89,12 @@ def get_browser_page(p, browser_mode, cdp_port, email, password):
             password=password,
             browser=browser,
         )
-        if not success:
-            browser.close()
-            return None, None, True
-        return browser, page, True
+        if success:
+            return browser, page, True
+        if page is not None and ensure_logged_in(page):
+            return browser, page, True
+        browser.close()
+        return None, None, True
 
 def scrape(page, keyword, distance, geo_id, easy_apply, date_filter, pages):
     all_jobs = []
@@ -93,7 +116,7 @@ def scrape(page, keyword, distance, geo_id, easy_apply, date_filter, pages):
                 seen_ids.add(job["job_id"])
                 all_jobs.append(job)
 
-        print(f"Page {page_num + 1} scraped — {len(all_jobs)} total unique")
+        debugLogger.log(f"Page {page_num + 1} scraped — {len(all_jobs)} total unique")
 
     toolbox.save_jobs_to_csv(all_jobs)
     return all_jobs, None
@@ -103,7 +126,7 @@ def apply(page, jobs, follow_companies, requires_sponsorship, max_applications=5
         follow_companies=follow_companies,
         requires_sponsorship=requires_sponsorship
     )
-    return applier.apply_batch(page, jobs[:max_applications])
+    return applier.apply_batch(page, jobs, max_applications=max_applications)
 
 def load_jobs_from_csv():
     jobs = []
@@ -122,43 +145,54 @@ def _finish(browser, should_close):
 
 def run_scrape_only(email, password, keyword, distance, geo_id, easy_apply, date_filter, pages,
                     browser_mode, browser_type, cdp_port):
-    with sync_playwright() as p:
-        browser, page, should_close = get_browser_page(p, browser_mode, cdp_port, email, password)
-        if browser is None:
-            return None, f"Could not connect to {browser_type}. Make sure it was launched with debugging enabled and you are logged into LinkedIn."
-        all_jobs, error = scrape(page, keyword, distance, geo_id, easy_apply, date_filter, pages)
-        _finish(browser, should_close)
-    return all_jobs, error
+    debugLogger.clear()
+    try:
+        with sync_playwright() as p:
+            browser, page, should_close = get_browser_page(p, browser_mode, cdp_port, email, password)
+            if browser is None:
+                return None, f"Could not connect to {browser_type}. Make sure it was launched with debugging enabled and you are logged into LinkedIn."
+            all_jobs, error = scrape(page, keyword, distance, geo_id, easy_apply, date_filter, pages)
+            _finish(browser, should_close)
+        return all_jobs, error
+    finally:
+        debugLogger.flush()
 
 def run_scrape_and_apply(email, password, keyword, distance, geo_id, easy_apply, date_filter, pages,
                          follow_companies, requires_sponsorship, max_applications,
                          browser_mode, browser_type, cdp_port):
-    with sync_playwright() as p:
-        browser, page, should_close = get_browser_page(p, browser_mode, cdp_port, email, password)
-        if browser is None:
-            return None, f"Could not connect to {browser_type}. Make sure it was launched with debugging enabled and you are logged into LinkedIn."
-        all_jobs, error = scrape(page, keyword, distance, geo_id, easy_apply, date_filter, pages)
-        if error:
+    debugLogger.clear()
+    try:
+        with sync_playwright() as p:
+            browser, page, should_close = get_browser_page(p, browser_mode, cdp_port, email, password)
+            if browser is None:
+                return None, f"Could not connect to {browser_type}. Make sure it was launched with debugging enabled and you are logged into LinkedIn."
+            all_jobs, error = scrape(page, keyword, distance, geo_id, easy_apply, date_filter, pages)
+            if error:
+                _finish(browser, should_close)
+                return None, error
+            jobs = load_jobs_from_csv()
+            apply_results = apply(page, jobs, follow_companies, requires_sponsorship, max_applications) if jobs else None
             _finish(browser, should_close)
-            return None, error
-        jobs = load_jobs_from_csv()
-        if jobs:
-            apply(page, jobs, follow_companies, requires_sponsorship, max_applications)
-        _finish(browser, should_close)
-    return all_jobs, None
+        return {"jobs": all_jobs, "apply_results": apply_results}, None
+    finally:
+        debugLogger.flush()
 
 def run_apply_from_csv(email, password, follow_companies, requires_sponsorship, max_applications,
                        browser_mode, browser_type, cdp_port):
-    jobs = load_jobs_from_csv()
-    if not jobs:
-        return None, "No jobs found in jobs.csv"
-    with sync_playwright() as p:
-        browser, page, should_close = get_browser_page(p, browser_mode, cdp_port, email, password)
-        if browser is None:
-            return None, f"Could not connect to {browser_type}. Make sure it was launched with debugging enabled and you are logged into LinkedIn."
-        results = apply(page, jobs, follow_companies, requires_sponsorship, max_applications)
-        _finish(browser, should_close)
-    return results, None
+    debugLogger.clear()
+    try:
+        jobs = load_jobs_from_csv()
+        if not jobs:
+            return None, "No jobs found in jobs.csv"
+        with sync_playwright() as p:
+            browser, page, should_close = get_browser_page(p, browser_mode, cdp_port, email, password)
+            if browser is None:
+                return None, f"Could not connect to {browser_type}. Make sure it was launched with debugging enabled and you are logged into LinkedIn."
+            results = apply(page, jobs, follow_companies, requires_sponsorship, max_applications)
+            _finish(browser, should_close)
+        return results, None
+    finally:
+        debugLogger.flush()
 
 
 # entry point

@@ -1,5 +1,6 @@
 import json
 import os
+import debugLogger
 
 PROFILE_FILE = "profile.json"
 QUESTIONS_FILE = "questions.json"
@@ -36,7 +37,7 @@ class QuestionCache:
         }
         with open(PROFILE_FILE, "w") as f:
             json.dump(default, f, indent=2)
-        print(f"Created default {PROFILE_FILE} — please fill in your details before applying.")
+        debugLogger.log(f"Created default {PROFILE_FILE} — please fill in your details before applying.")
         return default
 
     def load_questions(self):
@@ -64,19 +65,19 @@ class QuestionCache:
 
         if key in self.questions:
             cached = self._normalize_yes_no(self.questions[key])
-            print(f"Cached: {cleaned} → {cached}")
+            debugLogger.log(f"Cached: {cleaned} → {cached}")
             return cached
 
         default = self.profile.get("default_answer")
 
         if options:
-            print(f"\nUnknown question: {cleaned}")
-            print("Options:")
+            debugLogger.log(f"\nUnknown question: {cleaned}")
+            debugLogger.log("Options:")
             for i, opt in enumerate(options):
-                print(f"  {i + 1}. {opt}")
+                debugLogger.log(f"  {i + 1}. {opt}")
 
             if default and default in options:
-                print(f"Using default: {default}")
+                debugLogger.log(f"Using default: {default}")
                 self.questions[key] = default
                 self.save_questions()
                 return default
@@ -88,12 +89,12 @@ class QuestionCache:
                 answer = choice.capitalize()
         else:
             if default:
-                print(f"Using default for: {cleaned} → {default}")
+                debugLogger.log(f"Using default for: {cleaned} → {default}")
                 self.questions[key] = default
                 self.save_questions()
                 return default
 
-            print(f"\nUnknown question: {cleaned}")
+            debugLogger.log(f"\nUnknown question: {cleaned}")
             raw = input("Your answer: ").strip()
             answer = self._normalize_yes_no(raw) if raw.lower() in ("yes", "no", "y", "n", "true", "false") else raw.capitalize()
 

@@ -1,6 +1,24 @@
 import os
 import csv
+import json
 import streamlit as st
+
+_CONFIG_FILE = "config.json"
+
+def _load_config():
+    if os.path.exists(_CONFIG_FILE):
+        try:
+            with open(_CONFIG_FILE) as f:
+                return json.load(f)
+        except Exception:
+            pass
+    return {}
+
+def _save_config(updates):
+    cfg = _load_config()
+    cfg.update(updates)
+    with open(_CONFIG_FILE, "w") as f:
+        json.dump(cfg, f, indent=2)
 
 @st.dialog("👋 Welcome to Applymatic")
 def _first_run_guide():
@@ -113,7 +131,7 @@ def render(run_scrape_only, run_scrape_and_apply, run_apply_from_csv, load_creds
             keyword = st.text_input("Job Title / Keyword", value="Software Engineer", key="keyword_input")
             distance = st.slider("Distance (miles)", min_value=5, max_value=100, value=50, step=5, key="distance_slider")
         with col4:
-            geo_id = st.number_input("Geo ID", value=90000070, step=1, key="geo_id_input")
+            geo_id = st.number_input("Geo ID", value=_load_config().get("geo_id", 104116203), step=1, key="geo_id_input")
 
             date_filter = st.selectbox("Date Posted", options=[
                 ("Past 1 hour", "r3600"),
@@ -148,6 +166,8 @@ def render(run_scrape_only, run_scrape_and_apply, run_apply_from_csv, load_creds
 
     start_disabled = mode == "Apply from CSV" and csv_jobs == 0
     if st.button("🚀 Start", type="primary", key="start_btn", disabled=start_disabled):
+        if geo_id is not None:
+            _save_config({"geo_id": int(geo_id)})
         with st.spinner("Running..."):
             shared = dict(
                 email=email,
@@ -188,7 +208,21 @@ def render(run_scrape_only, run_scrape_and_apply, run_apply_from_csv, load_creds
             st.error(error)
         else:
             if mode == "Apply from CSV":
-                st.success(f"Batch complete — {all_jobs['applied']} applied, {all_jobs['failed']} failed")
+                st.success(f"Batch complete — {all_jobs['applied']} applied, {all_jobs['skipped']} skipped, {all_jobs['failed']} failed")
+            elif mode == "Scrape and apply":
+                scraped = all_jobs["jobs"]
+                ar = all_jobs["apply_results"]
+                st.success(f"Scraped {len(scraped)} jobs")
+                if ar:
+                    st.success(f"Applied {ar['applied']} — {ar['skipped']} skipped, {ar['failed']} failed")
+                st.divider()
+                st.header("Scraped Jobs")
+                for job in scraped:
+                    with st.expander(f"{job['title']} — {job['company']}"):
+                        st.write(f"📍 {job['location']}")
+                        st.write(f"💰 {job['salary']}")
+                        st.write(f"⚡ Easy Apply: {'Yes' if job['easy_apply'] else 'No'}")
+                        st.markdown(f"[View Job]({job['url']})")
             else:
                 st.success(f"Found {len(all_jobs)} unique jobs")
                 st.divider()

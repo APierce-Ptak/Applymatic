@@ -1,4 +1,5 @@
 from questionCache import QuestionCache
+import debugLogger
 
 class FormFiller:
     def __init__(self, cache: QuestionCache, follow_companies=False, requires_sponsorship=False):
@@ -28,7 +29,7 @@ class FormFiller:
             tech_map = self.cache.profile.get("years_experience_technologies", {})
             for tech, years in tech_map.items():
                 if tech.lower() in label_lower:
-                    print(f"Matched technology: {tech} → {years}")
+                    debugLogger.log(f"Matched technology: {tech} → {years}")
                     return years
             # no specific technology matched — use default
             return self.cache.profile.get("years_experience_default", "1")
@@ -78,13 +79,13 @@ class FormFiller:
             if suggestion:
                 suggestion.click()
                 page.wait_for_timeout(500)
-                print(f"Location autocomplete filled: {value}")
+                debugLogger.log(f"Location autocomplete filled: {value}")
                 return True
 
-            print(f"No autocomplete suggestion found for: {value}")
+            debugLogger.log(f"No autocomplete suggestion found for: {value}")
             return False
         except Exception as e:
-            print(f"Location autocomplete error: {e}")
+            debugLogger.log(f"Location autocomplete error: {e}")
             return False
 
     def _fill_top_choice(self, page):
@@ -92,9 +93,9 @@ class FormFiller:
             top_choice = page.query_selector('input[name="jobDetailsEasyApplyTopChoiceCheckbox"]')
             if top_choice and top_choice.is_checked():
                 top_choice.uncheck()
-                print("Top Choice unchecked")
+                debugLogger.log("Top Choice unchecked")
         except Exception as e:
-            print(f"Top choice error: {e}")
+            debugLogger.log(f"Top choice error: {e}")
 
     def _fill_follow_checkbox(self, page):
         try:
@@ -106,13 +107,13 @@ class FormFiller:
                     if is_checked and not self.follow_companies:
                         label.click(force=True)
                         page.wait_for_timeout(500)
-                        print("Follow company unchecked")
+                        debugLogger.log("Follow company unchecked")
                     elif not is_checked and self.follow_companies:
                         label.click(force=True)
                         page.wait_for_timeout(500)
-                        print("Follow company checked")
+                        debugLogger.log("Follow company checked")
         except Exception as e:
-            print(f"Follow checkbox error: {e}")
+            debugLogger.log(f"Follow checkbox error: {e}")
 
     def _fill_sponsorship(self, page):
         try:
@@ -130,9 +131,9 @@ class FormFiller:
                     )
                     if radio:
                         radio.check()
-                        print(f"Visa sponsorship set to: {answer}")
+                        debugLogger.log(f"Visa sponsorship set to: {answer}")
         except Exception as e:
-            print(f"Sponsorship error: {e}")
+            debugLogger.log(f"Sponsorship error: {e}")
 
     def _fill_radio_buttons(self, page):
         try:
@@ -151,7 +152,7 @@ class FormFiller:
                     continue
 
                 if fieldset.query_selector("input[type='radio']:checked"):
-                    print(f"Already answered: {question_text}")
+                    debugLogger.log(f"Already answered: {question_text}")
                     page.wait_for_timeout(300)
                     continue
 
@@ -166,9 +167,9 @@ class FormFiller:
                     radio = fieldset.query_selector(f"input[data-test-text-selectable-option__input='{answer}']")
                     if radio:
                         radio.check()
-                        print(f"Radio set: {question_text} → {answer}")
+                        debugLogger.log(f"Radio set: {question_text} → {answer}")
         except Exception as e:
-            print(f"Radio buttons error: {e}")
+            debugLogger.log(f"Radio buttons error: {e}")
 
     def _fill_text_inputs(self, page):
         try:
@@ -177,7 +178,7 @@ class FormFiller:
                 if not label:
                     continue
                 if input_el.input_value().strip():
-                    print(f"Already filled: {label}")
+                    debugLogger.log(f"Already filled: {label}")
                     page.wait_for_timeout(300)
                     continue
                 answer = self.match_profile(label) or self.cache.get_answer(label)
@@ -187,7 +188,7 @@ class FormFiller:
                     else:
                         input_el.fill(str(answer))
         except Exception as e:
-            print(f"Text inputs error: {e}")
+            debugLogger.log(f"Text inputs error: {e}")
 
     def _fill_selects(self, page):
         try:
@@ -197,7 +198,7 @@ class FormFiller:
                     continue
                 current = select.input_value()
                 if current.strip() and current != "Select an option":
-                    print(f"Already selected: {label} = {current}")
+                    debugLogger.log(f"Already selected: {label} = {current}")
                     page.wait_for_timeout(300)
                     continue
                 options = page.evaluate("""
@@ -210,9 +211,9 @@ class FormFiller:
                     try:
                         select.select_option(value=answer, timeout=2000)
                     except Exception:
-                        print(f"Could not select '{answer}' for '{label}' — skipping")
+                        debugLogger.log(f"Could not select '{answer}' for '{label}' — skipping")
         except Exception as e:
-            print(f"Selects error: {e}")
+            debugLogger.log(f"Selects error: {e}")
 
     def _fill_textareas(self, page):
         try:
@@ -221,14 +222,14 @@ class FormFiller:
                 if not label:
                     continue
                 if textarea.input_value().strip():
-                    print(f"Already filled: {label}")
+                    debugLogger.log(f"Already filled: {label}")
                     page.wait_for_timeout(300)
                     continue
                 answer = self.match_profile(label) or self.cache.get_answer(label)
                 if answer:
                     textarea.fill(str(answer))
         except Exception as e:
-            print(f"Textareas error: {e}")
+            debugLogger.log(f"Textareas error: {e}")
 
     def fill_form_page(self, page):
         try:
@@ -242,7 +243,7 @@ class FormFiller:
             page.wait_for_timeout(1000)
             return True
         except Exception as e:
-            print(f"Error filling form: {e}")
+            debugLogger.log(f"Error filling form: {e}")
             return False
 
     def handle_next_or_submit(self, page):
@@ -266,5 +267,5 @@ class FormFiller:
             return "unknown"
 
         except Exception as e:
-            print(f"Error handling next/submit: {e}")
+            debugLogger.log(f"Error handling next/submit: {e}")
             return "unknown"
