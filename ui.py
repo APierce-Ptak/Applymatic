@@ -1,8 +1,36 @@
 import os
+import sys
 import csv
 import json
 from dataclasses import dataclass
 import streamlit as st
+
+DEMO_MODE     = "--demo"  in sys.argv
+FRESH_INSTALL = "--fresh" in sys.argv
+
+# ── Demo fixtures (used when DEMO_MODE=1) ─────────────────────────────────────
+_DEMO_JOBS = [
+    {"Title": "Software Engineer II",        "Company": "Stripe",       "Location": "Seattle, WA", "Type": "Easy Apply"},
+    {"Title": "Senior Backend Engineer",      "Company": "Vercel",       "Location": "Remote",      "Type": "Easy Apply"},
+    {"Title": "Platform Engineer",            "Company": "Cloudflare",   "Location": "Austin, TX",  "Type": "Easy Apply"},
+    {"Title": "Full Stack Engineer",          "Company": "Linear",       "Location": "Remote",      "Type": "Easy Apply"},
+    {"Title": "Staff Software Engineer",      "Company": "Figma",        "Location": "San Francisco, CA", "Type": "Easy Apply"},
+    {"Title": "ML Infrastructure Engineer",   "Company": "Anthropic",    "Location": "Remote",      "Type": "Easy Apply"},
+    {"Title": "Frontend Engineer",            "Company": "Notion",       "Location": "New York, NY","Type": "Easy Apply"},
+    {"Title": "DevOps Engineer",              "Company": "HashiCorp",    "Location": "Remote",      "Type": "Easy Apply"},
+]
+_DEMO_APPLIED = {
+    "software engineer ii at stripe",
+    "senior backend engineer at vercel",
+    "platform engineer at cloudflare",
+}
+_DEMO_METRICS = {
+    "scraped":      247,
+    "applied":       61,
+    "in_queue":      38,
+    "success_rate": "74%",
+    "last_run":     "2 hours ago",
+}
 
 
 @dataclass
@@ -66,6 +94,8 @@ def _save_config(updates):
     with open(_CONFIG_FILE, "w") as f:
         json.dump(cfg, f, indent=2)
 
+EASY_APPLY_BASE_TIME = 2  # minutes saved per application
+
 @st.dialog("Welcome to Applymatic")
 def _first_run_guide():
     st.markdown("""
@@ -89,6 +119,10 @@ Paste it into the **Geo ID** field inside the Advanced expander.
         st.rerun()
 
 def _csv_job_count():
+    if DEMO_MODE:
+        return _DEMO_METRICS["scraped"]
+    if FRESH_INSTALL:
+        return 0
     if not os.path.exists("jobs.csv"):
         return 0
     try:
@@ -98,6 +132,10 @@ def _csv_job_count():
         return 0
 
 def _load_jobs_for_table():
+    if DEMO_MODE:
+        return list(_DEMO_JOBS)
+    if FRESH_INSTALL:
+        return []
     if os.path.exists("jobs.csv"):
         try:
             rows = []
@@ -113,12 +151,39 @@ def _load_jobs_for_table():
                 return rows
         except Exception:
             pass
-    return [
-        {"Title": "Software Engineer II",  "Company": "Stripe",     "Location": "Seattle, WA", "Type": "Easy Apply"},
-        {"Title": "Senior Backend Eng",    "Company": "Vercel",     "Location": "Remote",      "Type": "Easy Apply"},
-        {"Title": "Platform Engineer",     "Company": "Cloudflare", "Location": "Seattle, WA", "Type": "External"},
-        {"Title": "Full Stack Engineer",   "Company": "Linear",     "Location": "Remote",      "Type": "Easy Apply"},
-    ]
+    return []
+
+def _get_last_run() -> str:
+    if FRESH_INSTALL:
+        return ""
+    if not os.path.exists("debug.json"):
+        return ""
+    try:
+        from datetime import datetime
+        with open("debug.json", "r", encoding="utf-8") as f:
+            log = json.load(f).get("log", [])
+        if not log:
+            return ""
+        dt = datetime.fromisoformat(log[0]["ts"])
+        m  = int((datetime.now() - dt).total_seconds() // 60)
+        if m < 60:   return f"{m}m ago"
+        if m < 1440: return f"{m // 60}h ago"
+        return f"{m // 1440}d ago"
+    except Exception:
+        return ""
+
+def _load_applied_set() -> set:
+    if DEMO_MODE:
+        return set(_DEMO_APPLIED)
+    if FRESH_INSTALL:
+        return set()
+    if os.path.exists("applied.json"):
+        try:
+            with open("applied.json", "r", encoding="utf-8") as f:
+                return {e["label"].lower() for e in json.load(f)}
+        except Exception:
+            pass
+    return set()
 
 def _load_recent_activity(limit=8):
     """
@@ -140,6 +205,22 @@ def _load_recent_activity(limit=8):
 
     cards: list[JobCard] = []
     seen  = set()
+
+    if FRESH_INSTALL:
+        return []
+
+    if DEMO_MODE:
+        demo_activity = [
+            JobCard("Software Engineer II",      "Stripe",     "applied", "3h ago",  location="Seattle, WA", easy_apply=True),
+            JobCard("Senior Backend Engineer",    "Vercel",     "applied", "3h ago",  location="Remote",      easy_apply=True),
+            JobCard("Platform Engineer",          "Cloudflare", "applied", "3h ago",  location="Austin, TX",  easy_apply=True),
+            JobCard("Full Stack Engineer",        "Linear",     "skipped", "3h ago",  location="Remote",      easy_apply=True),
+            JobCard("Staff Software Engineer",    "Figma",      "failed",  "1d ago",  location="San Francisco, CA", easy_apply=True),
+            JobCard("ML Infrastructure Engineer", "Anthropic",  "scraped", "2d ago",  location="Remote",      easy_apply=True),
+            JobCard("Frontend Engineer",          "Notion",     "scraped", "2d ago",  location="New York, NY",easy_apply=True),
+            JobCard("DevOps Engineer",            "HashiCorp",  "scraped", "3d ago",  location="Remote",      easy_apply=True),
+        ]
+        return demo_activity[:limit]
 
     if os.path.exists("debug.json"):
         try:
@@ -283,28 +364,42 @@ hr {
     # ── Header ─────────────────────────────────────────────────────────
     col_logo, col_status = st.columns([3, 1])
     with col_logo:
-        st.markdown("""
+        demo_badge  = '<div style="font-size:11px; background:#fef9c3; color:#854d0e; padding:2px 8px; border-radius:4px; font-weight:500;">Demo</div>'         if DEMO_MODE     else ""
+        fresh_badge = '<div style="font-size:11px; background:#e0f2fe; color:#075985; padding:2px 8px; border-radius:4px; font-weight:500;">Fresh Install</div>' if FRESH_INSTALL else ""
+        st.markdown(f"""
 <div style="display:flex; align-items:center; gap:10px; padding:0.5rem 0 1.5rem 0;">
     <div style="font-size:22px; font-weight:500; letter-spacing:-0.02em;">⚡ Applymatic</div>
     <div style="font-size:11px; background:#dcfce7; color:#15803d; padding:2px 8px; border-radius:4px; font-weight:500;">Beta</div>
+    {demo_badge}{fresh_badge}
 </div>
 """, unsafe_allow_html=True)
     with col_status:
-        st.markdown("""
-<div style="text-align:right; padding-top:1rem; font-size:12px; color:#888;">Last run: 2 hours ago</div>
+        last_run_label = _DEMO_METRICS["last_run"] if DEMO_MODE else _get_last_run()
+        st.markdown(f"""
+<div style="text-align:right; padding-top:1rem; font-size:12px; color:#888;">{"Last run: " + last_run_label if last_run_label else "No runs yet"}</div>
 """, unsafe_allow_html=True)
 
     # ── Metrics ────────────────────────────────────────────────────────
-    csv_count = _csv_job_count()
-    m1, m2, m3, m4 = st.columns(4)
+    csv_count     = _csv_job_count()
+    applied_count = _DEMO_METRICS["applied"] if DEMO_MODE else len(_load_applied_set())
+    minutes_saved = applied_count * EASY_APPLY_BASE_TIME
+    time_saved_str = (
+        f"{minutes_saved // 60}h {minutes_saved % 60}m" if minutes_saved >= 60
+        else f"{minutes_saved}m" if minutes_saved > 0
+        else "—"
+    )
+
+    m1, m2, m3, m4, m5 = st.columns(5)
     with m1:
-        st.metric("Jobs scraped", "247", "+34 today")
+        st.metric("Jobs scraped", str(csv_count) if (DEMO_MODE or csv_count) else "—")
     with m2:
-        st.metric("Applied", "61", "+8 today")
+        st.metric("Applied", str(applied_count) if (DEMO_MODE or applied_count) else "—")
     with m3:
-        st.metric("Success rate", "74%")
+        st.metric("Time saved", time_saved_str)
     with m4:
-        st.metric("In queue", str(csv_count) if csv_count else "186")
+        st.metric("Success rate", _DEMO_METRICS["success_rate"] if DEMO_MODE else "—")
+    with m5:
+        st.metric("In queue", str(_DEMO_METRICS["in_queue"]) if DEMO_MODE else (str(csv_count) if csv_count else "—"))
 
     st.divider()
 
@@ -504,13 +599,7 @@ hr {
     with f3:
         if st.button("Applied",    key="filter_applied"): st.session_state.job_filter = "applied"
 
-    applied_set = set()
-    if os.path.exists("applied.json"):
-        try:
-            with open("applied.json", "r", encoding="utf-8") as f:
-                applied_set = {e["label"].lower() for e in json.load(f)}
-        except Exception:
-            pass
+    applied_set = _load_applied_set()
 
     rows = _load_jobs_for_table()
     if st.session_state.job_filter == "easy":

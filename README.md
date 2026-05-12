@@ -19,6 +19,22 @@ Applymatic is a **Python job application automation** tool that scrapes job list
 
 ---
 
+## Time Saved
+
+Every LinkedIn Easy Apply form takes roughly **2 minutes** to fill out manually — navigating multi-page forms, re-typing the same answers, waiting for dropdowns to load. Applymatic handles all of that automatically. The dashboard tracks this for you in real time under the **Time Saved** metric.
+
+| Applications submitted | Time saved |
+|---|---|
+| 10 | 20 minutes |
+| 25 | 50 minutes |
+| 50 | 1 hour 40 minutes |
+| 100 | 3 hours 20 minutes |
+| 200 | 6 hours 40 minutes |
+
+Most job seekers apply to 50–150+ positions over the course of a search. At that scale, Applymatic can recover several hours of repetitive form-filling — time better spent on networking, prep, or actual interviews.
+
+---
+
 ## Bot Detection Avoidance
 
 Applymatic supports two browser connection modes to reduce the chance of platforms flagging your activity:
@@ -63,9 +79,19 @@ playwright install chromium
 ```
 
 **5. Run the app:**
+
 ```bash
-streamlit run app.py
+# Normal — loads your real data (jobs.csv, applied.json, debug.json)
+streamlit run ui.py
+
+# Demo — loads fixture data so you can explore the UI without any files
+streamlit run ui.py -- --demo
+
+# Fresh install — simulates a brand new user, all metrics show — and no data is read
+streamlit run ui.py -- --fresh
 ```
+
+The `--` before `--demo` / `--fresh` is required. Streamlit uses it to separate its own CLI flags from arguments passed to your script — without it, Streamlit would try to interpret `--demo` as one of its own options and throw an error.
 
 Open your browser at `http://localhost:8501`
 
