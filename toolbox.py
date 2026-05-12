@@ -159,32 +159,68 @@ def scroll_job_list(page):
 def save_jobs_to_csv(jobs, filename="jobs.csv"):
     """
     Saves job results to a CSV file, appending new jobs and skipping duplicates by job_id.
-    Always ensures header row exists.
+    Always ensures header row exists. Migrates existing files to include the applied column.
     """
-    fieldnames = ["job_id", "title", "company", "location", "salary", "easy_apply", "url", "scraped_at"]
+    fieldnames = ["job_id", "title", "company", "location", "salary", "easy_apply", "url", "scraped_at", "applied"]
 
     existing_ids = set()
     file_exists = os.path.exists(filename)
 
-    # treat empty file same as no file
     if file_exists and os.path.getsize(filename) == 0:
         file_exists = False
 
     if file_exists:
         with open(filename, "r", newline="", encoding="utf-8") as f:
             reader = csv.DictReader(f)
-            for row in reader:
+            existing_fieldnames = list(reader.fieldnames or [])
+            rows = list(reader)
+            for row in rows:
                 existing_ids.add(row["job_id"])
+
+        if "applied" not in existing_fieldnames:
+            with open(filename, "w", newline="", encoding="utf-8") as f:
+                writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+                writer.writeheader()
+                for row in rows:
+                    row.setdefault("applied", "")
+                    writer.writerow(row)
 
     new_jobs = [j for j in jobs if j["job_id"] not in existing_ids]
 
     with open(filename, "a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames)
+        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
         if not file_exists:
             writer.writeheader()
         for job in new_jobs:
             job["scraped_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            job.setdefault("applied", "")
             writer.writerow(job)
 
     debugLogger.log(f"Saved {len(new_jobs)} new jobs to {filename} ({len(existing_ids)} already existed)")
     return len(new_jobs)
+
+
+def update_job_outcome(url, value, filename="jobs.csv"):
+    """Set the applied column (1 or 0) for a job matched by URL."""
+    if not url or not os.path.exists(filename):
+        return
+    try:
+        with open(filename, "r", newline="", encoding="utf-8") as f:
+            reader = csv.DictReader(f)
+            fieldnames = list(reader.fieldnames or [])
+            rows = list(reader)
+
+        if "applied" not in fieldnames:
+            fieldnames.append("applied")
+
+        for row in rows:
+            if row.get("url") == url:
+                row["applied"] = str(value)
+                break
+
+        with open(filename, "w", newline="", encoding="utf-8") as f:
+            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
+            writer.writeheader()
+            writer.writerows(rows)
+    except Exception as e:
+        debugLogger.log(f"Could not update outcome in {filename}: {e}")

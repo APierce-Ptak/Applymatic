@@ -177,10 +177,14 @@ def _load_applied_set() -> set:
         return set(_DEMO_APPLIED)
     if FRESH_INSTALL:
         return set()
-    if os.path.exists("applied.json"):
+    if os.path.exists("jobs.csv"):
         try:
-            with open("applied.json", "r", encoding="utf-8") as f:
-                return {e["label"].lower() for e in json.load(f)}
+            with open("jobs.csv", "r", newline="", encoding="utf-8") as f:
+                return {
+                    f"{row['title']} at {row['company']}".lower()
+                    for row in csv.DictReader(f)
+                    if row.get("applied") == "1"
+                }
         except Exception:
             pass
     return set()
