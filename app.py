@@ -132,9 +132,9 @@ def load_jobs_from_csv():
     jobs = []
     if os.path.exists("jobs.csv"):
         with open("jobs.csv", "r", newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            for row in reader:
-                jobs.append(row)
+            for row in csv.DictReader(f):
+                if row.get("applied") != "1":
+                    jobs.append(row)
     return jobs
 
 def _finish(browser, should_close):

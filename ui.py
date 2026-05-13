@@ -440,11 +440,7 @@ hr {
                 ("Any time",      None),
             ], format_func=lambda x: x[0], key="date_filter_select")
 
-        tog1, tog2 = st.columns(2)
-        with tog1:
-            easy_apply = st.toggle("Easy Apply only", value=True, key="easy_apply_toggle")
-        with tog2:
-            auto_apply = st.toggle("Auto apply", value=False, key="auto_apply_toggle")
+        easy_apply = st.toggle("Easy Apply only", value=True, key="easy_apply_toggle")
 
         distance = st.slider("Distance (miles)", min_value=5, max_value=100, value=50, step=5, key="distance_slider")
         pages    = st.slider("Pages to scrape",  min_value=1, max_value=10,  value=3,  step=1, key="pages_slider")
@@ -513,11 +509,11 @@ hr {
         st.write("")
         btn1, btn2, btn3 = st.columns([1, 1, 1.2])
         with btn1:
-            scrape_clicked = st.button("Scrape only",  key="btn_scrape", use_container_width=True)
+            scrape_clicked = st.button("Scrape",        key="btn_scrape", use_container_width=True, help="Find jobs and save to queue")
         with btn2:
-            queue_clicked  = st.button("Apply queue",  key="btn_queue",  use_container_width=True)
+            queue_clicked  = st.button("Apply saved",   key="btn_queue",  use_container_width=True, help="Apply to jobs already in your queue")
         with btn3:
-            start_clicked  = st.button("Start", type="primary", key="btn_start", use_container_width=True)
+            start_clicked  = st.button("Scrape & Apply", type="primary", key="btn_start", use_container_width=True, help="Scrape new jobs then apply immediately")
 
     # ════ RIGHT — Recent Activity ════════════════════════════════════
     with col_right:
@@ -537,7 +533,7 @@ hr {
     elif queue_clicked:
         action = "apply_queue"
     elif start_clicked:
-        action = "scrape_and_apply" if auto_apply else "scrape_only"
+        action = "scrape_and_apply"
 
     if action:
         if geo_id is not None:
