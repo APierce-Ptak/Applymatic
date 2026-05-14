@@ -50,8 +50,10 @@ class FormFiller:
             "location": self.cache.profile.get("location"),
             "where": self.cache.profile.get("location"),
             "linkedin": self.cache.profile.get("linkedin"),
-            "desired salary": self.cache.profile.get("desired_salary"),
-            "expected salary": self.cache.profile.get("desired_salary"),
+            "salary": self.cache.profile.get("desired_salary"),
+            "desired pay": self.cache.profile.get("desired_salary"),
+            "pay rate": self.cache.profile.get("desired_salary"),
+            "compensation": self.cache.profile.get("desired_salary"),
             "work authorization": self.cache.profile.get("work_authorization"),
             "authorized to work": self.cache.profile.get("work_authorization"),
             "require sponsorship": self.cache.profile.get("requires_sponsorship"),
@@ -170,9 +172,16 @@ class FormFiller:
                 answer = self.match_profile(question_text, options=options) or self.cache.get_answer(question_text, options=options)
                 if answer:
                     radio = fieldset.query_selector(f"input[data-test-text-selectable-option__input='{answer}']")
+                    if not radio:
+                        for r in fieldset.query_selector_all("input[data-test-text-selectable-option__input]"):
+                            if (r.get_attribute("data-test-text-selectable-option__input") or "").lower() == str(answer).lower():
+                                radio = r
+                                break
                     if radio:
                         radio.check()
                         debugLogger.log(f"Radio set: {question_text} → {answer}")
+                    else:
+                        debugLogger.log(f"No radio match for '{question_text}': answer='{answer}', options={options}")
         except Exception as e:
             debugLogger.log(f"Radio buttons error: {e}")
 
@@ -249,21 +258,32 @@ class FormFiller:
                 if not label:
                     continue
                 current = select.input_value()
-                if current.strip() and current != "Select an option":
+                if current.strip() and current not in ("Select an option", ""):
                     debugLogger.log(f"Already selected: {label} = {current}")
                     page.wait_for_timeout(300)
                     continue
-                options = page.evaluate("""
+                opts = page.evaluate("""
                     (el) => Array.from(el.options)
-                        .map(o => o.value)
-                        .filter(v => v !== 'Select an option')
+                        .filter(o => o.value && o.value !== 'Select an option')
+                        .map(o => ({value: o.value, text: o.text.trim()}))
                 """, select)
-                answer = self.match_profile(label, options=options) or self.cache.get_answer(label, options=options)
+                option_values = [o["value"] for o in opts]
+                answer = self.match_profile(label, options=option_values) or self.cache.get_answer(label, options=option_values)
                 if answer:
-                    try:
-                        select.select_option(value=answer, timeout=2000)
-                    except Exception:
-                        debugLogger.log(f"Could not select '{answer}' for '{label}' — skipping")
+                    ans_lower = str(answer).lower()
+                    match = next((o["value"] for o in opts if o["value"].lower() == ans_lower), None)
+                    if not match:
+                        match = next((o["value"] for o in opts if o["text"].lower() == ans_lower), None)
+                    if match:
+                        try:
+                            select.select_option(value=match, timeout=2000)
+                            debugLogger.log(f"Select set: {label} → {match}")
+                        except Exception:
+                            debugLogger.log(f"Could not select '{match}' for '{label}' — skipping")
+                    else:
+                        debugLogger.log(f"No matching option for '{label}': answer='{answer}', options={option_values}")
+                else:
+                    debugLogger.log(f"No answer for select: {label}")
         except Exception as e:
             debugLogger.log(f"Selects error: {e}")
 
@@ -283,6 +303,54 @@ class FormFiller:
         except Exception as e:
             debugLogger.log(f"Textareas error: {e}")
 
+    def _fill_date_fields(self, page):
+        from datetime import datetime
+        try:
+            for wrapper in page.query_selector_all("[data-test-form-builder-date-form-component]"):
+                for select in wrapper.query_selector_all("select"):
+                    if select.input_value().strip():
+                        continue
+                    opts = page.evaluate("""
+                        (el) => Array.from(el.options)
+                            .filter(o => o.value && o.value !== 'Select an option')
+                            .map(o => ({value: o.value, text: o.text.trim()}))
+                    """, select)
+                    if not opts:
+                        continue
+                    label = self.get_label(page, select) or ""
+                    name  = select.get_attribute("name") or ""
+                    hint  = (label + " " + name).lower()
+                    if "year" in hint:
+                        year_str = str(datetime.now().year)
+                        match = next((o["value"] for o in opts if o["value"] == year_str or o["text"] == year_str), opts[-1]["value"])
+                        select.select_option(value=match)
+                        debugLogger.log(f"Date year set → {match}")
+                    elif "month" in hint:
+                        select.select_option(value=opts[0]["value"])
+                        debugLogger.log(f"Date month set → {opts[0]['value']}")
+                for input_el in wrapper.query_selector_all("input[type='date']"):
+                    if input_el.input_value().strip():
+                        continue
+                    input_el.fill(datetime.now().strftime("%Y-%m-%d"))
+                    debugLogger.log("Date input filled with today")
+        except Exception as e:
+            debugLogger.log(f"Date fields error: {e}")
+
+    def _log_unfilled_required(self, page):
+        try:
+            unfilled = page.evaluate("""
+                () => [...document.querySelectorAll(
+                    '[required], [aria-required="true"]'
+                )]
+                .filter(el => !el.value || el.value === 'Select an option')
+                .map(el => el.getAttribute('aria-label') || el.getAttribute('name') || el.tagName)
+                .filter(Boolean)
+            """)
+            for field in unfilled:
+                debugLogger.log(f"Still empty required field: {field}")
+        except Exception:
+            pass
+
     def fill_form_page(self, page):
         try:
             self._fill_top_choice(page)
@@ -294,7 +362,9 @@ class FormFiller:
             self._fill_numeric_inputs(page)
             self._fill_selects(page)
             self._fill_textareas(page)
+            self._fill_date_fields(page)
             page.wait_for_timeout(1000)
+            self._log_unfilled_required(page)
             return True
         except Exception as e:
             debugLogger.log(f"Error filling form: {e}")

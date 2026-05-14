@@ -444,6 +444,7 @@ hr {
 
         distance = st.slider("Distance (miles)", min_value=5, max_value=100, value=50, step=5, key="distance_slider")
         pages    = st.slider("Pages to scrape",  min_value=1, max_value=10,  value=3,  step=1, key="pages_slider")
+        max_applications = st.number_input("Max applications", min_value=1, max_value=500, value=10, step=1, key="max_apps_input")
 
         # Advanced — Geo ID + location lookup
         with st.expander("Advanced"):
@@ -497,13 +498,11 @@ hr {
                     st.success("Credentials saved")
 
             st.divider()
-            a1, a2, a3 = st.columns(3)
+            a1, a2 = st.columns(2)
             with a1:
                 follow_companies = st.toggle("Follow companies", value=False, key="follow_toggle")
             with a2:
                 requires_sponsorship = st.toggle("Needs sponsorship", value=False, key="sponsorship_toggle")
-            with a3:
-                max_applications = st.number_input("Max apps", min_value=1, max_value=50, value=10, step=1, key="max_apps_input")
 
         # Action buttons
         st.write("")
