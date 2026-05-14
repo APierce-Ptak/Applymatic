@@ -81,7 +81,7 @@ playwright install chromium
 **5. Run the app:**
 
 ```bash
-# Normal — loads your real data (jobs.csv, applied.json, debug.json)
+# Normal — loads your real data (jobs.csv, debug.json)
 streamlit run ui.py
 
 # Demo — loads fixture data so you can explore the UI without any files

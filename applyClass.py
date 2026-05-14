@@ -1,5 +1,3 @@
-import json
-import os
 from questionCache import QuestionCache
 from formFiller import FormFiller
 from toolbox import human_delay, update_job_outcome
