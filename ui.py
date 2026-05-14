@@ -1,6 +1,5 @@
 import os
 import sys
-import csv
 import json
 from dataclasses import dataclass
 import streamlit as st
@@ -123,35 +122,16 @@ def _csv_job_count():
         return _DEMO_METRICS["scraped"]
     if FRESH_INSTALL:
         return 0
-    if not os.path.exists("jobs.csv"):
-        return 0
-    try:
-        with open("jobs.csv", "r", newline="", encoding="utf-8") as f:
-            return sum(1 for _ in csv.DictReader(f))
-    except Exception:
-        return 0
+    from toolbox import get_job_count
+    return get_job_count()
 
 def _load_jobs_for_table():
     if DEMO_MODE:
         return list(_DEMO_JOBS)
     if FRESH_INSTALL:
         return []
-    if os.path.exists("jobs.csv"):
-        try:
-            rows = []
-            with open("jobs.csv", "r", newline="", encoding="utf-8") as f:
-                for row in csv.DictReader(f):
-                    rows.append({
-                        "Title":    row.get("title", ""),
-                        "Company":  row.get("company", ""),
-                        "Location": row.get("location", ""),
-                        "Type":     "Easy Apply" if str(row.get("easy_apply", "")).lower() in ("true", "1", "yes") else "External",
-                    })
-            if rows:
-                return rows
-        except Exception:
-            pass
-    return []
+    from toolbox import get_all_jobs_for_table
+    return get_all_jobs_for_table()
 
 def _get_last_run() -> str:
     if FRESH_INSTALL:
@@ -177,23 +157,14 @@ def _load_applied_set() -> set:
         return set(_DEMO_APPLIED)
     if FRESH_INSTALL:
         return set()
-    if os.path.exists("jobs.csv"):
-        try:
-            with open("jobs.csv", "r", newline="", encoding="utf-8") as f:
-                return {
-                    f"{row['title']} at {row['company']}".lower()
-                    for row in csv.DictReader(f)
-                    if row.get("applied") == "1"
-                }
-        except Exception:
-            pass
-    return set()
+    from toolbox import get_applied_labels
+    return get_applied_labels()
 
 def _load_recent_activity(limit=8):
     """
     Pull activity from two sources:
     1. debug.json — applied/skipped/failed outcomes from the last run (color-coded)
-    2. jobs.csv   — recently scraped jobs not already in debug results (blue, scraped-only)
+    2. jobs.db    — recently scraped jobs not already in debug results (blue, scraped-only)
     """
     from datetime import datetime
 
@@ -240,11 +211,10 @@ def _load_recent_activity(limit=8):
         except Exception:
             pass
 
-    if len(cards) < limit and os.path.exists("jobs.csv"):
+    if len(cards) < limit:
         try:
-            with open("jobs.csv", "r", newline="", encoding="utf-8") as f:
-                rows = list(csv.DictReader(f))
-            for row in rows[-limit:][::-1]:
+            from toolbox import get_recent_jobs
+            for row in get_recent_jobs(limit):
                 card = JobCard.from_csv_row(row)
                 if card.label.lower() not in seen:
                     cards.append(card)
@@ -574,7 +544,7 @@ hr {
 
             elif action == "apply_queue":
                 if csv_count == 0:
-                    st.warning("jobs.csv is empty — run a scrape first.")
+                    st.warning("No jobs in queue — run a scrape first.")
                 else:
                     result, error = run_apply_from_csv(
                         follow_companies=follow_companies,

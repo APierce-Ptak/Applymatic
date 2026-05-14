@@ -1,6 +1,5 @@
 import json
 import os
-import csv
 import platform
 import subprocess
 from playwright.sync_api import sync_playwright
@@ -118,7 +117,7 @@ def scrape(page, keyword, distance, geo_id, easy_apply, date_filter, pages):
 
         debugLogger.log(f"Page {page_num + 1} scraped — {len(all_jobs)} total unique")
 
-    toolbox.save_jobs_to_csv(all_jobs)
+    toolbox.save_jobs_to_db(all_jobs)
     return all_jobs, None
 
 def apply(page, jobs, follow_companies, requires_sponsorship, max_applications=50):
@@ -128,14 +127,6 @@ def apply(page, jobs, follow_companies, requires_sponsorship, max_applications=5
     )
     return applier.apply_batch(page, jobs, max_applications=max_applications)
 
-def load_jobs_from_csv():
-    jobs = []
-    if os.path.exists("jobs.csv"):
-        with open("jobs.csv", "r", newline="", encoding="utf-8") as f:
-            for row in csv.DictReader(f):
-                if row.get("applied") != "1":
-                    jobs.append(row)
-    return jobs
 
 def _finish(browser, should_close):
     if should_close:
@@ -170,7 +161,7 @@ def run_scrape_and_apply(email, password, keyword, distance, geo_id, easy_apply,
             if error:
                 _finish(browser, should_close)
                 return None, error
-            jobs = load_jobs_from_csv()
+            jobs = toolbox.load_jobs_from_db()
             apply_results = apply(page, jobs, follow_companies, requires_sponsorship, max_applications) if jobs else None
             _finish(browser, should_close)
         return {"jobs": all_jobs, "apply_results": apply_results}, None
@@ -181,9 +172,9 @@ def run_apply_from_csv(email, password, follow_companies, requires_sponsorship, 
                        browser_mode, browser_type, cdp_port):
     debugLogger.clear()
     try:
-        jobs = load_jobs_from_csv()
+        jobs = toolbox.load_jobs_from_db()
         if not jobs:
-            return None, "No jobs found in jobs.csv"
+            return None, "No jobs found — run a scrape first"
         with sync_playwright() as p:
             browser, page, should_close = get_browser_page(p, browser_mode, cdp_port, email, password)
             if browser is None:
