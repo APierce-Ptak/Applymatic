@@ -71,22 +71,23 @@ class QuestionCache:
         default = self.profile.get("default_answer")
 
         if options:
-            debugLogger.log(f"\nUnknown question: {cleaned}")
-            debugLogger.log("Options:")
-            for i, opt in enumerate(options):
-                debugLogger.log(f"  {i + 1}. {opt}")
-
             if default and default in options:
-                debugLogger.log(f"Using default: {default}")
+                debugLogger.log(f"Using default: {cleaned} → {default}")
                 self.questions[key] = default
                 self.save_questions()
                 return default
 
-            choice = input("Enter number or type answer: ").strip()
-            if choice.isdigit() and 1 <= int(choice) <= len(options):
-                answer = options[int(choice) - 1]
-            else:
-                answer = choice.capitalize()
+            # case-insensitive default match
+            match = next((o for o in options if str(o).lower() == str(default).lower()), None) if default else None
+            if match:
+                debugLogger.log(f"Using default (case-insensitive): {cleaned} → {match}")
+                self.questions[key] = match
+                self.save_questions()
+                return match
+
+            # fall back to first option rather than blocking on input()
+            answer = options[0]
+            debugLogger.log(f"No default match — using first option for: {cleaned} → {answer}")
         else:
             if default:
                 debugLogger.log(f"Using default for: {cleaned} → {default}")
@@ -94,9 +95,8 @@ class QuestionCache:
                 self.save_questions()
                 return default
 
-            debugLogger.log(f"\nUnknown question: {cleaned}")
-            raw = input("Your answer: ").strip()
-            answer = self._normalize_yes_no(raw) if raw.lower() in ("yes", "no", "y", "n", "true", "false") else raw.capitalize()
+            debugLogger.log(f"No answer and no default for: {cleaned} — skipping")
+            return None
 
         self.questions[key] = answer
         self.save_questions()

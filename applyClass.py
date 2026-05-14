@@ -1,8 +1,6 @@
-import json
-import os
 from questionCache import QuestionCache
 from formFiller import FormFiller
-from toolbox import human_delay
+from toolbox import human_delay, update_job_outcome
 import debugLogger
 
 class AutoApply:
@@ -22,7 +20,7 @@ class AutoApply:
                     .some(p => p.innerText.trim() === 'Application submitted')
             """)
             if already_submitted:
-                return None
+                return "already_applied"
 
             closed = page.evaluate("""
                 () => document.body.innerText.includes('No longer accepting applications')
@@ -91,9 +89,9 @@ class AutoApply:
         debugLogger.log(f"\nApplying to: {job['title']} at {job['company']}")
 
         nav_result = self.navigate_to_job(page, job["url"])
-        if nav_result is None:
+        if nav_result == "already_applied":
             debugLogger.log(f"Previously submitted — skipping: {job['title']} at {job['company']}")
-            return None
+            return "already_applied"
         if nav_result == "closed":
             debugLogger.log(f"No longer accepting applications — skipping: {job['title']} at {job['company']}")
             return None
@@ -169,11 +167,18 @@ class AutoApply:
 
             result = self.apply_to_job(page, job)
             title, company = job.get('title', 'Unknown'), job.get('company', 'Unknown')
+            url = job.get('url', '')
             if result is True:
                 results["applied"] += 1
                 max_str = f"/{max_applications}" if max_applications is not None else ""
                 debugLogger.log(f"[{results['applied']}{max_str}] Applied: {title} at {company}")
                 debugLogger.record_outcome("applied", title, company)
+                update_job_outcome(url, 1)
+            elif result == "already_applied":
+                results["skipped"] += 1
+                debugLogger.log(f"Already applied: {title} at {company}")
+                debugLogger.record_outcome("skipped", title, company)
+                update_job_outcome(url, 1)
             elif result is None:
                 results["skipped"] += 1
                 debugLogger.log(f"Skipped: {title} at {company}")
@@ -182,6 +187,7 @@ class AutoApply:
                 results["failed"] += 1
                 debugLogger.log(f"Failed: {title} at {company}")
                 debugLogger.record_outcome("failed", title, company)
+                update_job_outcome(url, 0)
 
         debugLogger.log(f"\nBatch complete — {results['applied']} applied, {results['skipped']} skipped, {results['failed']} failed")
         return results

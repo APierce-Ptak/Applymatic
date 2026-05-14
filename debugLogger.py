@@ -33,8 +33,8 @@ def flush():
             "summary": {
                 "applied": len(_summary["applied"]),
                 "skipped": len(_summary["skipped"]),
-                "failed": len(_summary["failed"]),
-                "jobs": _summary,
+                "failed":  len(_summary["failed"]),
+                "jobs":    _summary,
             },
             "log": _entries,
         }
@@ -42,3 +42,4 @@ def flush():
             json.dump(output, f, indent=2)
     except Exception as e:
         print(f"Could not write {DEBUG_FILE}: {e}")
+
