@@ -3,10 +3,13 @@ import csv
 import os
 import json
 import random
+import sqlite3
 import time
 import requests
 from datetime import datetime
 import debugLogger
+
+DB_FILE = "jobs.db"
 
 
 def human_delay(min_ms=500, max_ms=2000):
@@ -156,71 +159,186 @@ def scroll_job_list(page):
         human_delay(800, 1800)
 
 
-def save_jobs_to_csv(jobs, filename="jobs.csv"):
-    """
-    Saves job results to a CSV file, appending new jobs and skipping duplicates by job_id.
-    Always ensures header row exists. Migrates existing files to include the applied column.
-    """
-    fieldnames = ["job_id", "title", "company", "location", "salary", "easy_apply", "url", "scraped_at", "applied"]
-
-    existing_ids = set()
-    file_exists = os.path.exists(filename)
-
-    if file_exists and os.path.getsize(filename) == 0:
-        file_exists = False
-
-    if file_exists:
-        with open(filename, "r", newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            existing_fieldnames = list(reader.fieldnames or [])
-            rows = list(reader)
-            for row in rows:
-                existing_ids.add(row["job_id"])
-
-        if "applied" not in existing_fieldnames:
-            with open(filename, "w", newline="", encoding="utf-8") as f:
-                writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
-                writer.writeheader()
-                for row in rows:
-                    row.setdefault("applied", "")
-                    writer.writerow(row)
-
-    new_jobs = [j for j in jobs if j["job_id"] not in existing_ids]
-
-    with open(filename, "a", newline="", encoding="utf-8") as f:
-        writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
-        if not file_exists:
-            writer.writeheader()
-        for job in new_jobs:
-            job["scraped_at"] = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-            job.setdefault("applied", "")
-            writer.writerow(job)
-
-    debugLogger.log(f"Saved {len(new_jobs)} new jobs to {filename} ({len(existing_ids)} already existed)")
-    return len(new_jobs)
+def init_db(filename=DB_FILE):
+    is_new = not os.path.exists(filename)
+    conn = sqlite3.connect(filename)
+    conn.execute("""
+        CREATE TABLE IF NOT EXISTS jobs (
+            job_id     TEXT PRIMARY KEY,
+            title      TEXT,
+            company    TEXT,
+            location   TEXT,
+            salary     TEXT,
+            easy_apply INTEGER DEFAULT 0,
+            url        TEXT,
+            scraped_at TEXT,
+            applied    TEXT DEFAULT ''
+        )
+    """)
+    conn.commit()
+    if is_new:
+        _migrate_csv_to_db(conn)
+    conn.close()
 
 
-def update_job_outcome(url, value, filename="jobs.csv"):
-    """Set the applied column (1 or 0) for a job matched by URL."""
-    if not url or not os.path.exists(filename):
+def _migrate_csv_to_db(conn):
+    if not os.path.exists("jobs.csv"):
         return
     try:
-        with open(filename, "r", newline="", encoding="utf-8") as f:
-            reader = csv.DictReader(f)
-            fieldnames = list(reader.fieldnames or [])
-            rows = list(reader)
-
-        if "applied" not in fieldnames:
-            fieldnames.append("applied")
-
+        with open("jobs.csv", "r", newline="", encoding="utf-8") as f:
+            rows = list(csv.DictReader(f))
         for row in rows:
-            if row.get("url") == url:
-                row["applied"] = str(value)
-                break
-
-        with open(filename, "w", newline="", encoding="utf-8") as f:
-            writer = csv.DictWriter(f, fieldnames=fieldnames, extrasaction="ignore")
-            writer.writeheader()
-            writer.writerows(rows)
+            try:
+                conn.execute("""
+                    INSERT OR IGNORE INTO jobs
+                    (job_id, title, company, location, salary, easy_apply, url, scraped_at, applied)
+                    VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """, (
+                    row.get("job_id", ""),
+                    row.get("title", ""),
+                    row.get("company", ""),
+                    row.get("location", ""),
+                    row.get("salary", ""),
+                    1 if str(row.get("easy_apply", "")).lower() in ("true", "1", "yes") else 0,
+                    row.get("url", ""),
+                    row.get("scraped_at", ""),
+                    row.get("applied", ""),
+                ))
+            except Exception:
+                pass
+        conn.commit()
+        debugLogger.log(f"Migrated {len(rows)} jobs from jobs.csv → jobs.db")
     except Exception as e:
-        debugLogger.log(f"Could not update outcome in {filename}: {e}")
+        debugLogger.log(f"CSV migration failed: {e}")
+
+
+def save_jobs_to_db(jobs, filename=DB_FILE):
+    init_db(filename)
+    conn = sqlite3.connect(filename)
+    new_count = 0
+    for job in jobs:
+        try:
+            conn.execute("""
+                INSERT OR IGNORE INTO jobs
+                (job_id, title, company, location, salary, easy_apply, url, scraped_at, applied)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, '')
+            """, (
+                job.get("job_id", ""),
+                job.get("title", ""),
+                job.get("company", ""),
+                job.get("location", ""),
+                job.get("salary", ""),
+                1 if str(job.get("easy_apply", "")).lower() in ("true", "1", "yes") else 0,
+                job.get("url", ""),
+                datetime.now().strftime("%Y-%m-%d %H:%M:%S"),
+            ))
+            if conn.execute("SELECT changes()").fetchone()[0]:
+                new_count += 1
+        except Exception as e:
+            debugLogger.log(f"DB insert error: {e}")
+    conn.commit()
+    conn.close()
+    debugLogger.log(f"Saved {new_count} new jobs to jobs.db")
+    return new_count
+
+
+def update_job_outcome(url, value, filename=DB_FILE):
+    if not url:
+        return
+    try:
+        init_db(filename)
+        conn = sqlite3.connect(filename)
+        conn.execute("UPDATE jobs SET applied = ? WHERE url = ?", (str(value), url))
+        conn.commit()
+        conn.close()
+    except Exception as e:
+        debugLogger.log(f"Could not update outcome: {e}")
+
+
+def load_jobs_from_db(filename=DB_FILE):
+    init_db(filename)
+    try:
+        conn = sqlite3.connect(filename)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT * FROM jobs WHERE applied != '1'").fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+    except Exception as e:
+        debugLogger.log(f"DB load error: {e}")
+        return []
+
+
+def get_job_count(filename=DB_FILE):
+    init_db(filename)
+    try:
+        conn = sqlite3.connect(filename)
+        count = conn.execute("SELECT COUNT(*) FROM jobs").fetchone()[0]
+        conn.close()
+        return count
+    except Exception:
+        return 0
+
+
+def get_unapplied_count(filename=DB_FILE):
+    init_db(filename)
+    try:
+        conn = sqlite3.connect(filename)
+        count = conn.execute("SELECT COUNT(*) FROM jobs WHERE applied = ''").fetchone()[0]
+        conn.close()
+        return count
+    except Exception:
+        return 0
+
+
+def get_failed_count(filename=DB_FILE):
+    init_db(filename)
+    try:
+        conn = sqlite3.connect(filename)
+        count = conn.execute("SELECT COUNT(*) FROM jobs WHERE applied = '0'").fetchone()[0]
+        conn.close()
+        return count
+    except Exception:
+        return 0
+
+
+def get_all_jobs_for_table(filename=DB_FILE):
+    init_db(filename)
+    try:
+        conn = sqlite3.connect(filename)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute("SELECT * FROM jobs ORDER BY scraped_at DESC").fetchall()
+        conn.close()
+        return [{
+            "Title":    row["title"],
+            "Company":  row["company"],
+            "Location": row["location"],
+            "Type":     "Easy Apply" if row["easy_apply"] else "External",
+        } for row in rows]
+    except Exception as e:
+        debugLogger.log(f"DB table read error: {e}")
+        return []
+
+
+def get_applied_labels(filename=DB_FILE):
+    init_db(filename)
+    try:
+        conn = sqlite3.connect(filename)
+        rows = conn.execute("SELECT title, company FROM jobs WHERE applied = '1'").fetchall()
+        conn.close()
+        return {f"{r[0]} at {r[1]}".lower() for r in rows}
+    except Exception:
+        return set()
+
+
+def get_recent_jobs(limit=8, filename=DB_FILE):
+    init_db(filename)
+    try:
+        conn = sqlite3.connect(filename)
+        conn.row_factory = sqlite3.Row
+        rows = conn.execute(
+            "SELECT * FROM jobs ORDER BY scraped_at DESC LIMIT ?", (limit,)
+        ).fetchall()
+        conn.close()
+        return [dict(row) for row in rows]
+    except Exception:
+        return []

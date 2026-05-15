@@ -1,3 +1,4 @@
+import re
 from questionCache import QuestionCache
 import debugLogger
 
@@ -20,6 +21,26 @@ class FormFiller:
             return None
         except:
             return None
+
+    def _check_salary_range(self, label, desired_salary):
+        """Returns 'Yes'/'No' if the label contains a salary range and desired_salary falls within it."""
+        try:
+            s = str(desired_salary).replace(',', '').replace('$', '').strip().lower()
+            salary = float(s[:-1]) * 1000 if s.endswith('k') else float(s)
+            if salary < 1000:
+                salary *= 1000
+        except (ValueError, TypeError):
+            return None
+        m = re.search(r'\$?([\d]+)(k?)\s*[-–]\s*\$?([\d]+)(k?)', label.replace(',', ''), re.IGNORECASE)
+        if not m:
+            return None
+        lo, lo_k = float(m.group(1)), m.group(2).lower()
+        hi, hi_k = float(m.group(3)), m.group(4).lower()
+        if lo_k == 'k' or (not lo_k and lo < 1000):
+            lo *= 1000
+        if hi_k == 'k' or (not hi_k and hi < 1000):
+            hi *= 1000
+        return "Yes" if lo <= salary <= hi else "No"
 
     def match_profile(self, label, options=None):
         label_lower = label.lower()
@@ -65,6 +86,12 @@ class FormFiller:
 
         for keyword, value in mapping.items():
             if keyword in label_lower and value:
+                if options:
+                    options_lower = [str(o).lower() for o in options]
+                    if any(o in ("yes", "no") for o in options_lower):
+                        return self._check_salary_range(label, value)
+                    if not any(str(value).lower() == o for o in options_lower):
+                        return None
                 return value
 
         return None
@@ -122,26 +149,6 @@ class FormFiller:
         except Exception as e:
             debugLogger.log(f"Follow checkbox error: {e}")
 
-    def _fill_sponsorship(self, page):
-        try:
-            fieldsets = page.query_selector_all(
-                "fieldset[data-test-form-builder-radio-button-form-component='true']"
-            )
-            for fieldset in fieldsets:
-                legend = fieldset.query_selector(
-                    "[data-test-form-builder-radio-button-form-component__title]"
-                )
-                if legend and "sponsorship" in legend.inner_text().lower():
-                    answer = "Yes" if self.requires_sponsorship else "No"
-                    radio = fieldset.query_selector(
-                        f"input[data-test-text-selectable-option__input='{answer}']"
-                    )
-                    if radio:
-                        radio.check()
-                        debugLogger.log(f"Visa sponsorship set to: {answer}")
-        except Exception as e:
-            debugLogger.log(f"Sponsorship error: {e}")
-
     def _fill_radio_buttons(self, page):
         try:
             all_fieldsets = page.query_selector_all(
@@ -155,9 +162,6 @@ class FormFiller:
                     continue
                 question_text = legend.inner_text().strip().split('\n')[0].strip()
 
-                if "sponsorship" in question_text.lower():
-                    continue
-
                 if fieldset.query_selector("input[type='radio']:checked"):
                     debugLogger.log(f"Already answered: {question_text}")
                     page.wait_for_timeout(300)
@@ -169,7 +173,11 @@ class FormFiller:
                     if r.get_attribute("data-test-text-selectable-option__input")
                 ]
 
-                answer = self.match_profile(question_text, options=options) or self.cache.get_answer(question_text, options=options)
+                if "sponsorship" in question_text.lower():
+                    answer = "Yes" if self.requires_sponsorship else "No"
+                else:
+                    answer = self.match_profile(question_text, options=options) or self.cache.get_answer(question_text, options=options)
+
                 if answer:
                     radio = fieldset.query_selector(f"input[data-test-text-selectable-option__input='{answer}']")
                     if not radio:
@@ -178,7 +186,13 @@ class FormFiller:
                                 radio = r
                                 break
                     if radio:
-                        radio.check()
+                        # click the label — it sits on top of the input and intercepts pointer events
+                        radio_id = radio.get_attribute("id")
+                        label_el = fieldset.query_selector(f"label[for='{radio_id}']") if radio_id else None
+                        if label_el:
+                            label_el.click()
+                        else:
+                            radio.check(force=True)
                         debugLogger.log(f"Radio set: {question_text} → {answer}")
                     else:
                         debugLogger.log(f"No radio match for '{question_text}': answer='{answer}', options={options}")
@@ -223,6 +237,13 @@ class FormFiller:
                     page.wait_for_timeout(300)
                     continue
                 answer = self.match_profile(label)
+                if not answer:
+                    cached = self.cache.get_answer(label)
+                    try:
+                        float(str(cached or '').replace(',', '').replace('$', '').strip())
+                        answer = cached
+                    except (ValueError, TypeError):
+                        pass
                 if answer:
                     self._type_into(input_el, answer)
                     debugLogger.log(f"Numeric filled: {label} → {answer}")
@@ -257,23 +278,39 @@ class FormFiller:
                 label = self.get_label(page, select)
                 if not label:
                     continue
-                current = select.input_value()
-                if current.strip() and current not in ("Select an option", ""):
-                    debugLogger.log(f"Already selected: {label} = {current}")
-                    page.wait_for_timeout(300)
-                    continue
                 opts = page.evaluate("""
                     (el) => Array.from(el.options)
                         .filter(o => o.value && o.value !== 'Select an option')
                         .map(o => ({value: o.value, text: o.text.trim()}))
                 """, select)
                 option_values = [o["value"] for o in opts]
+                current = select.input_value()
+                if current.strip() and current in option_values:
+                    debugLogger.log(f"Already selected: {label} = {current}")
+                    page.wait_for_timeout(300)
+                    continue
                 answer = self.match_profile(label, options=option_values) or self.cache.get_answer(label, options=option_values)
                 if answer:
                     ans_lower = str(answer).lower()
                     match = next((o["value"] for o in opts if o["value"].lower() == ans_lower), None)
                     if not match:
                         match = next((o["value"] for o in opts if o["text"].lower() == ans_lower), None)
+                    if not match:
+                        # numeric range fallback: "3-5 years" or "5+" style options
+                        try:
+                            num = float(str(answer).replace(',', '').replace('$', '').strip())
+                            for o in opts:
+                                rm = re.search(r'(\d+)\s*[-–]\s*(\d+)', o["text"])
+                                if rm and float(rm.group(1)) <= num <= float(rm.group(2)):
+                                    match = o["value"]
+                                    break
+                            if not match:
+                                for o in opts:
+                                    rm = re.search(r'(\d+)\s*\+', o["text"])
+                                    if rm and num >= float(rm.group(1)):
+                                        match = o["value"]
+                        except (ValueError, TypeError):
+                            pass
                     if match:
                         try:
                             select.select_option(value=match, timeout=2000)
@@ -355,7 +392,6 @@ class FormFiller:
         try:
             self._fill_top_choice(page)
             self._fill_follow_checkbox(page)
-            self._fill_sponsorship(page)
             self._fill_radio_buttons(page)
             self._fill_checkboxes(page)
             self._fill_text_inputs(page)

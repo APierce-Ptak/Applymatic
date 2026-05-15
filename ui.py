@@ -1,6 +1,5 @@
 import os
 import sys
-import csv
 import json
 from dataclasses import dataclass
 import streamlit as st
@@ -123,35 +122,16 @@ def _csv_job_count():
         return _DEMO_METRICS["scraped"]
     if FRESH_INSTALL:
         return 0
-    if not os.path.exists("jobs.csv"):
-        return 0
-    try:
-        with open("jobs.csv", "r", newline="", encoding="utf-8") as f:
-            return sum(1 for _ in csv.DictReader(f))
-    except Exception:
-        return 0
+    from toolbox import get_job_count
+    return get_job_count()
 
 def _load_jobs_for_table():
     if DEMO_MODE:
         return list(_DEMO_JOBS)
     if FRESH_INSTALL:
         return []
-    if os.path.exists("jobs.csv"):
-        try:
-            rows = []
-            with open("jobs.csv", "r", newline="", encoding="utf-8") as f:
-                for row in csv.DictReader(f):
-                    rows.append({
-                        "Title":    row.get("title", ""),
-                        "Company":  row.get("company", ""),
-                        "Location": row.get("location", ""),
-                        "Type":     "Easy Apply" if str(row.get("easy_apply", "")).lower() in ("true", "1", "yes") else "External",
-                    })
-            if rows:
-                return rows
-        except Exception:
-            pass
-    return []
+    from toolbox import get_all_jobs_for_table
+    return get_all_jobs_for_table()
 
 def _get_last_run() -> str:
     if FRESH_INSTALL:
@@ -177,23 +157,14 @@ def _load_applied_set() -> set:
         return set(_DEMO_APPLIED)
     if FRESH_INSTALL:
         return set()
-    if os.path.exists("jobs.csv"):
-        try:
-            with open("jobs.csv", "r", newline="", encoding="utf-8") as f:
-                return {
-                    f"{row['title']} at {row['company']}".lower()
-                    for row in csv.DictReader(f)
-                    if row.get("applied") == "1"
-                }
-        except Exception:
-            pass
-    return set()
+    from toolbox import get_applied_labels
+    return get_applied_labels()
 
 def _load_recent_activity(limit=8):
     """
     Pull activity from two sources:
     1. debug.json — applied/skipped/failed outcomes from the last run (color-coded)
-    2. jobs.csv   — recently scraped jobs not already in debug results (blue, scraped-only)
+    2. jobs.db    — recently scraped jobs not already in debug results (blue, scraped-only)
     """
     from datetime import datetime
 
@@ -240,11 +211,10 @@ def _load_recent_activity(limit=8):
         except Exception:
             pass
 
-    if len(cards) < limit and os.path.exists("jobs.csv"):
+    if len(cards) < limit:
         try:
-            with open("jobs.csv", "r", newline="", encoding="utf-8") as f:
-                rows = list(csv.DictReader(f))
-            for row in rows[-limit:][::-1]:
+            from toolbox import get_recent_jobs
+            for row in get_recent_jobs(limit):
                 card = JobCard.from_csv_row(row)
                 if card.label.lower() not in seen:
                     cards.append(card)
@@ -385,13 +355,26 @@ hr {
 
     # ── Metrics ────────────────────────────────────────────────────────
     csv_count     = _csv_job_count()
-    applied_count = _DEMO_METRICS["applied"] if DEMO_MODE else len(_load_applied_set())
+    if DEMO_MODE:
+        applied_count  = _DEMO_METRICS["applied"]
+        failed_count   = 0
+        in_queue_count = _DEMO_METRICS["in_queue"]
+    elif FRESH_INSTALL:
+        applied_count = failed_count = in_queue_count = 0
+    else:
+        from toolbox import get_unapplied_count, get_failed_count
+        applied_count  = len(_load_applied_set())
+        failed_count   = get_failed_count()
+        in_queue_count = get_unapplied_count()
+
     minutes_saved = applied_count * EASY_APPLY_BASE_TIME
     time_saved_str = (
         f"{minutes_saved // 60}h {minutes_saved % 60}m" if minutes_saved >= 60
         else f"{minutes_saved}m" if minutes_saved > 0
         else "—"
     )
+    attempted = applied_count + failed_count
+    success_rate_str = f"{round(applied_count / attempted * 100)}%" if attempted > 0 else "—"
 
     m1, m2, m3, m4, m5 = st.columns(5)
     with m1:
@@ -401,9 +384,9 @@ hr {
     with m3:
         st.metric("Time saved", time_saved_str)
     with m4:
-        st.metric("Success rate", _DEMO_METRICS["success_rate"] if DEMO_MODE else "—")
+        st.metric("Success rate", _DEMO_METRICS["success_rate"] if DEMO_MODE else success_rate_str)
     with m5:
-        st.metric("In queue", str(_DEMO_METRICS["in_queue"]) if DEMO_MODE else (str(csv_count) if csv_count else "—"))
+        st.metric("In queue", str(in_queue_count) if (DEMO_MODE or in_queue_count) else "—")
 
     st.divider()
 
@@ -574,7 +557,7 @@ hr {
 
             elif action == "apply_queue":
                 if csv_count == 0:
-                    st.warning("jobs.csv is empty — run a scrape first.")
+                    st.warning("No jobs in queue — run a scrape first.")
                 else:
                     result, error = run_apply_from_csv(
                         follow_companies=follow_companies,

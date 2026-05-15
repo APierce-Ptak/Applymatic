@@ -30,6 +30,7 @@ profile.json
 cred.json
 questions.json
 jobs.csv
+jobs.db
 locations.json
 config.json
 CLAUDE.md
