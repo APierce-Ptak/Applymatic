@@ -8,6 +8,18 @@ class AutoApply:
         self.cache = QuestionCache()
         self.filler = FormFiller(self.cache, follow_companies, requires_sponsorship)
 
+    def _check_daily_limit(self, page):
+        try:
+            return page.evaluate("""
+                () => {
+                    const t = document.body.innerText;
+                    return t.includes("reached today's Easy Apply limit")
+                        || t.includes("We limit Easy Apply submissions");
+                }
+            """)
+        except Exception:
+            return False
+
     def navigate_to_job(self, page, job_url):
         try:
             page.goto(job_url)
@@ -37,6 +49,8 @@ class AutoApply:
 
             button.dispatch_event("click")
             human_delay(1500, 3000)
+            if self._check_daily_limit(page):
+                return "limit_reached"
             return True
 
         except Exception as e:
@@ -92,6 +106,8 @@ class AutoApply:
         if nav_result == "already_applied":
             debugLogger.log(f"Previously submitted — skipping: {job['title']} at {job['company']}")
             return "already_applied"
+        if nav_result == "limit_reached":
+            return "limit_reached"
         if nav_result == "closed":
             debugLogger.log(f"No longer accepting applications — skipping: {job['title']} at {job['company']}")
             return None
@@ -105,6 +121,9 @@ class AutoApply:
 
         for i in range(max_pages):
             debugLogger.log(f"Form page {i + 1}")
+
+            if self._check_daily_limit(page):
+                return "limit_reached"
 
             # detect if we are stuck on the same form page
             current_fingerprint = self.get_form_fingerprint(page)
@@ -168,6 +187,9 @@ class AutoApply:
             result = self.apply_to_job(page, job)
             title, company = job.get('title', 'Unknown'), job.get('company', 'Unknown')
             url = job.get('url', '')
+            if result == "limit_reached":
+                debugLogger.log("Daily Easy Apply limit reached — stopping batch")
+                break
             if result is True:
                 results["applied"] += 1
                 max_str = f"/{max_applications}" if max_applications is not None else ""

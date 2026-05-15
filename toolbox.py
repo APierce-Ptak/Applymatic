@@ -279,6 +279,28 @@ def get_job_count(filename=DB_FILE):
         return 0
 
 
+def get_unapplied_count(filename=DB_FILE):
+    init_db(filename)
+    try:
+        conn = sqlite3.connect(filename)
+        count = conn.execute("SELECT COUNT(*) FROM jobs WHERE applied = ''").fetchone()[0]
+        conn.close()
+        return count
+    except Exception:
+        return 0
+
+
+def get_failed_count(filename=DB_FILE):
+    init_db(filename)
+    try:
+        conn = sqlite3.connect(filename)
+        count = conn.execute("SELECT COUNT(*) FROM jobs WHERE applied = '0'").fetchone()[0]
+        conn.close()
+        return count
+    except Exception:
+        return 0
+
+
 def get_all_jobs_for_table(filename=DB_FILE):
     init_db(filename)
     try:

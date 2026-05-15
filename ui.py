@@ -355,13 +355,26 @@ hr {
 
     # ── Metrics ────────────────────────────────────────────────────────
     csv_count     = _csv_job_count()
-    applied_count = _DEMO_METRICS["applied"] if DEMO_MODE else len(_load_applied_set())
+    if DEMO_MODE:
+        applied_count  = _DEMO_METRICS["applied"]
+        failed_count   = 0
+        in_queue_count = _DEMO_METRICS["in_queue"]
+    elif FRESH_INSTALL:
+        applied_count = failed_count = in_queue_count = 0
+    else:
+        from toolbox import get_unapplied_count, get_failed_count
+        applied_count  = len(_load_applied_set())
+        failed_count   = get_failed_count()
+        in_queue_count = get_unapplied_count()
+
     minutes_saved = applied_count * EASY_APPLY_BASE_TIME
     time_saved_str = (
         f"{minutes_saved // 60}h {minutes_saved % 60}m" if minutes_saved >= 60
         else f"{minutes_saved}m" if minutes_saved > 0
         else "—"
     )
+    attempted = applied_count + failed_count
+    success_rate_str = f"{round(applied_count / attempted * 100)}%" if attempted > 0 else "—"
 
     m1, m2, m3, m4, m5 = st.columns(5)
     with m1:
@@ -371,9 +384,9 @@ hr {
     with m3:
         st.metric("Time saved", time_saved_str)
     with m4:
-        st.metric("Success rate", _DEMO_METRICS["success_rate"] if DEMO_MODE else "—")
+        st.metric("Success rate", _DEMO_METRICS["success_rate"] if DEMO_MODE else success_rate_str)
     with m5:
-        st.metric("In queue", str(_DEMO_METRICS["in_queue"]) if DEMO_MODE else (str(csv_count) if csv_count else "—"))
+        st.metric("In queue", str(in_queue_count) if (DEMO_MODE or in_queue_count) else "—")
 
     st.divider()
 
