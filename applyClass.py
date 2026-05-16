@@ -20,7 +20,7 @@ class AutoApply:
         except Exception:
             return False
 
-    def navigate_to_job(self, page, job_url):
+    def navigate_to_job(self, page, job_url, is_easy_apply=True):
         try:
             page.goto(job_url)
             page.wait_for_load_state("load")
@@ -39,6 +39,23 @@ class AutoApply:
             """)
             if closed:
                 return "closed"
+
+            if not is_easy_apply:
+                button = page.query_selector("[data-live-test-job-apply-button]")
+                if not button:
+                    debugLogger.log(f"No external Apply button found at {job_url}")
+                    return False
+                try:
+                    with page.expect_popup() as popup_info:
+                        button.click()
+                    popup = popup_info.value
+                    external_url = popup.url
+                    popup.close()
+                    debugLogger.log(f"External URL captured: {external_url}")
+                    return {"external_url": external_url}
+                except Exception as e:
+                    debugLogger.log(f"Could not capture external URL: {e}")
+                    return False
 
             button = page.query_selector("a[aria-label='Easy Apply to this job']")
             if not button:
@@ -102,7 +119,8 @@ class AutoApply:
     def apply_to_job(self, page, job):
         debugLogger.log(f"\nApplying to: {job['title']} at {job['company']}")
 
-        nav_result = self.navigate_to_job(page, job["url"])
+        is_easy_apply = bool(job.get("easy_apply", 1))
+        nav_result = self.navigate_to_job(page, job["url"], is_easy_apply=is_easy_apply)
         if nav_result == "already_applied":
             debugLogger.log(f"Previously submitted — skipping: {job['title']} at {job['company']}")
             return "already_applied"
@@ -111,6 +129,8 @@ class AutoApply:
         if nav_result == "closed":
             debugLogger.log(f"No longer accepting applications — skipping: {job['title']} at {job['company']}")
             return None
+        if isinstance(nav_result, dict) and "external_url" in nav_result:
+            return nav_result
         if not nav_result:
             return False
 
@@ -190,6 +210,10 @@ class AutoApply:
             if result == "limit_reached":
                 debugLogger.log("Daily Easy Apply limit reached — stopping batch")
                 break
+            if isinstance(result, dict) and "external_url" in result:
+                results["skipped"] += 1
+                debugLogger.log(f"External URL collected: {result['external_url']} — {title} at {company}")
+                continue
             if result is True:
                 results["applied"] += 1
                 max_str = f"/{max_applications}" if max_applications is not None else ""
