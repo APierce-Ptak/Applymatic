@@ -214,7 +214,7 @@ class FormFiller:
                     debugLogger.log(f"Already filled: {label}")
                     page.wait_for_timeout(300)
                     continue
-                answer = self.match_profile(label) or self.cache.get_answer(label)
+                answer = self.match_profile(label) or self.cache.get_answer(label, cached_only=True)
                 if answer:
                     if any(word in label.lower() for word in ["city", "location", "where"]):
                         self.fill_location_autocomplete(page, input_el, str(answer))
@@ -238,7 +238,7 @@ class FormFiller:
                     continue
                 answer = self.match_profile(label)
                 if not answer:
-                    cached = self.cache.get_answer(label)
+                    cached = self.cache.get_answer(label, cached_only=True)
                     try:
                         float(str(cached or '').replace(',', '').replace('$', '').strip())
                         answer = cached
@@ -334,9 +334,10 @@ class FormFiller:
                     debugLogger.log(f"Already filled: {label}")
                     page.wait_for_timeout(300)
                     continue
-                answer = self.match_profile(label) or self.cache.get_answer(label)
+                answer = self.match_profile(label) or self.cache.get_answer(label, cached_only=True)
                 if answer:
                     textarea.fill(str(answer))
+                    debugLogger.log(f"Textarea filled: {label} → {answer}")
         except Exception as e:
             debugLogger.log(f"Textareas error: {e}")
 
@@ -379,7 +380,7 @@ class FormFiller:
                 () => [...document.querySelectorAll(
                     '[required], [aria-required="true"]'
                 )]
-                .filter(el => !el.value || el.value === 'Select an option')
+                .filter(el => el.offsetParent !== null && (!el.value || el.value === 'Select an option'))
                 .map(el => el.getAttribute('aria-label') || el.getAttribute('name') || el.tagName)
                 .filter(Boolean)
             """)

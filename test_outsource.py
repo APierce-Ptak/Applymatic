@@ -1,9 +1,10 @@
+import sys
 from playwright.sync_api import sync_playwright
 from genericFormFiller import GenericFormFiller
 from questionCache import QuestionCache
 import debugLogger
 
-URL = "https://jobs.ashbyhq.com/tradeify/443c4534-8152-4364-826a-6acb21d89367"
+URL = sys.argv[1] if len(sys.argv) > 1 else "https://jobs.ashbyhq.com/tradeify/443c4534-8152-4364-826a-6acb21d89367"
 
 debugLogger.clear()
 

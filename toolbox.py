@@ -260,7 +260,7 @@ def load_jobs_from_db(filename=DB_FILE):
     try:
         conn = sqlite3.connect(filename)
         conn.row_factory = sqlite3.Row
-        rows = conn.execute("SELECT * FROM jobs WHERE applied != '1'").fetchall()
+        rows = conn.execute("SELECT * FROM jobs WHERE applied NOT IN ('1', 'external')").fetchall()
         conn.close()
         return [dict(row) for row in rows]
     except Exception as e:

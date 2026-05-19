@@ -177,14 +177,9 @@ class AutoApply:
                 debugLogger.log("Could not find Next or Submit — stopping")
                 return False
             else:
-                # Next or Review was found and clicked — form is advancing, reset stall counter
-                stall_count = 0
                 human_delay(1500, 2500)
 
         return False
-
-    def apply_single(self, page, job):
-        return self.apply_to_job(page, job)
 
     def apply_batch(self, page, jobs, max_applications=None):
         results = {"applied": 0, "failed": 0, "skipped": 0}
@@ -213,6 +208,7 @@ class AutoApply:
             if isinstance(result, dict) and "external_url" in result:
                 results["skipped"] += 1
                 debugLogger.log(f"External URL collected: {result['external_url']} — {title} at {company}")
+                update_job_outcome(url, 'external')
                 continue
             if result is True:
                 results["applied"] += 1

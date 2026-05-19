@@ -1,3 +1,4 @@
+import os
 from questionCache import QuestionCache
 import debugLogger
 
@@ -99,7 +100,7 @@ class GenericFormFiller:
 
         # pass 1: fill regular fields, collect location fields for after
         # location autocomplete causes React re-renders that stale other element refs
-        location_els = []
+        found_location = False
         try:
             for el in page.query_selector_all(selectors):
                 try:
@@ -115,7 +116,7 @@ class GenericFormFiller:
                     is_location = any(w in label.lower() for w in ["city", "location", "where"]) \
                         or placeholder in ("Start typing...", "Search location", "Search for location")
                     if is_location:
-                        location_els.append(label)
+                        found_location = True
                         continue
                     answer = self.match_profile(label)
                     if answer:
@@ -131,7 +132,7 @@ class GenericFormFiller:
 
         # pass 2: fill location fields — re-query fresh refs after pass 1
         location = self.cache.profile.get("location")
-        if location_els and location:
+        if found_location and location:
             try:
                 for el in page.query_selector_all(selectors):
                     try:
@@ -203,7 +204,6 @@ class GenericFormFiller:
             debugLogger.log(f"[Generic] Textareas error: {e}")
 
     def _upload_resume(self, page):
-        import os
         resume_path = os.path.abspath("resume.pdf")
         if not os.path.exists(resume_path):
             debugLogger.log("[Generic] resume.pdf not found — skipping upload")
@@ -252,7 +252,6 @@ class GenericFormFiller:
                 or page.query_selector("[role='listbox'] li")
                 or page.query_selector("[role='listbox'] [role='option']")
                 or page.query_selector(".autocomplete__option")
-                or page.query_selector("[class*='option']")
             )
             if suggestion:
                 suggestion.click()

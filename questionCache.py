@@ -59,7 +59,7 @@ class QuestionCache:
     def _normalize_yes_no(self, value):
         return {"yes": "Yes", "no": "No", "y": "Yes", "n": "No", "true": "Yes", "false": "No"}.get(value.lower(), value)
 
-    def get_answer(self, question_text, options=None):
+    def get_answer(self, question_text, options=None, cached_only=False):
         cleaned = question_text.strip().split('\n')[0].strip()
         key = cleaned.lower()
 
@@ -67,6 +67,9 @@ class QuestionCache:
             cached = self._normalize_yes_no(self.questions[key])
             debugLogger.log(f"Cached: {cleaned} → {cached}")
             return cached
+
+        if cached_only:
+            return None
 
         default = self.profile.get("default_answer")
 
